@@ -1,0 +1,45 @@
+
+## 01-2019 - Leberger et. al 2019 - script Figure 1 
+
+forest_tab <- read.table('.../Forest_loss_tab.csv')
+
+head(forest_tab)
+dim(forest_tab)
+# [1] 15282    25
+
+table(forest_tab$iucn)
+#   1    2    3    4    5    6    7 
+#1327  336 1053 1864 6458 3436  808 
+
+# % of forest area per PA for each IUCN category
+forest_per_pa <- (forest_tab$forest_area_km2_inPA_2000 / forest_tab$pa_nbcell)*100
+head(forest_per_pa,40)
+forest_per_pa_tab <- data.frame(forest_tab, forest_per_pa)
+
+forest_per_pa_cat1 <- forest_per_pa_tab $forest_per_pa[forest_tab$iucn == 1] 
+forest_per_pa_cat2 <- forest_per_pa_tab $forest_per_pa[forest_tab$iucn == 2] 
+forest_per_pa_cat3 <- forest_per_pa_tab $forest_per_pa[forest_tab$iucn == 3]  
+forest_per_pa_cat4 <- forest_per_pa_tab $forest_per_pa[forest_tab$iucn == 4]  
+forest_per_pa_cat5 <- forest_per_pa_tab $forest_per_pa[forest_tab$iucn == 5]  
+forest_per_pa_cat6 <- forest_per_pa_tab $forest_per_pa[forest_tab$iucn == 6]  
+forest_per_pa_cat7 <- forest_per_pa_tab $forest_per_pa[forest_tab$iucn == 7]
+
+
+### Plot
+
+# dev.off()
+par(mar=c(5,6,4,8))
+
+# Boxplot
+boxplot( na.omit(forest_per_pa_cat1), na.omit(forest_per_pa_cat2), na.omit(forest_per_pa_cat3), na.omit(forest_per_pa_cat4), na.omit(forest_per_pa_cat5), na.omit(forest_per_pa_cat6),na.omit(forest_per_pa_cat7), xlim=c(0.5, 7.5), axes=F, cex.lab=1.7, outline=F, ylim=c(0, 100 +15), boxfill='white') 
+mtext('IUCN category', side=1, cex=1.7, line=3)
+
+axis(side=2, cex.axis=1.5)
+mtext('Forest cover per PA (%)', side=2, cex=1.7, line=3)
+
+axis(side=1, pos=-0.5, labels=c('Ia','Ib','II','III','IV','V','VI'), at=c(1,2,3,4,5,6,7), cex.axis=1.5, line=-2)
+
+text(labels = c('n=1327', 'n=336', 'n=1053', 'n=1867', 'n=6463', 'n=3442', 'n=808'), x=c(1, 2, 3, 4, 5, 6, 7),  y= c(105, 105, 105, 105, 105, 105, 105), cex=1.2)
+
+#points(x=c(1,2,3,4,5,6,7), y=Forest_size_cat_mean, type='p', col='red')
+
