@@ -1,0 +1,204 @@
+
+
+
+### Figure 3
+###---------
+
+## Table for analysis
+##-------
+
+
+forest_tab <- read.csv(".../Forest_loss_tab.csv", h=T)
+
+# percentage of original forests (compared to PA size in nb of cells)
+forest_orig_norm <- forest_tab$forest_area_nbcell_inPA_2000 / max(forest_tab$forest_area_nbcell_inPA_2000)
+
+# build table
+model_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014/100, forest_tab$iucn, forest_tab$pa_nbcell, forest_orig_norm, forest_tab$IPBES_sub))
+colnames(model_tab) <- c('loss_perc_2001_2014', 'iucn', 'wdpa_size', 'Forest_2000_cells', 'IPBES_sub')
+head(model_tab, 10)
+
+n <- rep(0, 11)
+
+IUCN_tab_slope <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+IUCN_tab_std_error <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+IUCN_tab_t_value <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+IUCN_tab_pv <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+
+forest_cell <- as.numeric(model_tab $Forest_2000_cells)
+loss_perc <- forest_tab $loss_perc_2001_2014
+
+# install.packages('survey')
+library(survey) # for svyglm 
+
+# install.packages('car')
+library(car) # for vif
+vif_value <- list()
+
+for(i in 1:16){ 
+
+	IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
+	IPBES_forest_cell <- model_tab $Forest_2000_cells[model_tab $IPBES_sub == i]
+	IPBES_forest_norm <- (model_tab $Forest_2000_cells[model_tab $IPBES_sub == i])/max(model_tab $Forest_2000_cells[model_tab $IPBES_sub == i])
+	IPBES_loss_perc <- model_tab$loss_perc_2001_2014[model_tab $IPBES_sub == i]
+	IPBES_wdpa_norm <- model_tab$wdpa_size[model_tab $IPBES_sub == i]/max(model_tab $wdpa_size[model_tab $IPBES_sub == i])
+	
+	 IPBES_glm_tab <- data.frame(Y_IPBES = IPBES_loss_perc, IUCN_cat_IPBES =as.factor(IPBES_iucn), IPBES_forest_cell = IPBES_forest_cell, IPBES_forest_norm = IPBES_forest_norm, wdpa_size_norm= IPBES_wdpa_norm)
+	
+	glm1 <- svyglm(Y_IPBES ~ IUCN_cat_IPBES + IPBES_forest_norm ,
+	design=svydesign(ids=~1, weights=~ IPBES_forest_cell, 
+	data= IPBES_glm_tab), 
+ 	family='binomial')
+ 	
+ 	summary_slope <- summary(glm1)
+	
+	IUCN_tab_slope[[i]] <- summary_slope$coefficients[,1]
+	
+    summary_std_error <- summary_slope
+    IUCN_tab_std_error[[i]] <- summary_std_error$coefficients[,2]
+    
+    summary_t_value <- summary_slope
+    IUCN_tab_t_value[[i]] <- summary_t_value$coefficients[,3]
+    
+    summary_pv <- summary_slope
+    IUCN_tab_pv[[i]] <- summary_pv$coefficients[, 4]
+}
+
+
+IUCN_tab_slope2 <- list()
+
+for(i in 1:16){
+IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
+a <- sort(unique(IPBES_iucn))
+b <- seq(1:7)
+miss_iucn <- b %in% a
+IUCN_tab_slope2[[i]] <- IUCN_tab_slope[[i]][1] 
+IUCN_tab_slope2[[i]][2:(length(IUCN_tab_slope[[i]])-1)] <- IUCN_tab_slope[[i]][1] + IUCN_tab_slope[[i]][2:(length(IUCN_tab_slope[[i]])-1)]
+
+	for(cpt in 1:7){
+	if(miss_iucn[cpt] == F){
+		IUCN_tab_slope2[[i]] <- c(
+		IUCN_tab_slope2[[i]][1:cpt-1], 
+		NA, 
+		IUCN_tab_slope2[[i]][cpt:length(IUCN_tab_slope2[[i]])]) }
+		if(length(IUCN_tab_slope2[[i]]) > 7) {IUCN_tab_slope2[[i]] <- IUCN_tab_slope2[[i]][1:7]}
+	}
+}
+
+IUCN_tab_slope2 # all slopes = estimates saved in this list
+
+
+summary_std_error2 <- list()
+
+for(i in 1:16){
+IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
+a <- sort(unique(IPBES_iucn))
+b <- seq(1:7)
+miss_iucn <- b %in% a
+summary_std_error2[[i]] <- IUCN_tab_std_error[[i]][-length(IUCN_tab_std_error[[i]])]
+
+	for(cpt in 1:7){
+	if(miss_iucn[cpt] == F){ 
+		summary_std_error2[[i]] <- c(
+		summary_std_error2[[i]][1:cpt-1], 
+		NA, 
+		summary_std_error2[[i]][cpt:length(summary_std_error2[[i]])]) }
+	if(length(summary_std_error2[[i]]) > 7) {summary_std_error2[[i]] <- summary_std_error2[[i]][1:7]}
+	}
+}
+
+summary_std_error2 # all standard error saved in this list
+
+
+## take just the forest size estimate
+Forest_slope <- list()
+
+for(i in 1:16){
+IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
+a <- sort(unique(IPBES_iucn))
+b <- seq(1:7)
+miss_iucn <- b %in% a
+Forest_slope[[i]] <- IUCN_tab_slope[[i]][1]+IUCN_tab_slope[[i]][length(IUCN_tab_slope[[i]])]
+}
+
+Forest_slope
+
+
+## Figure 4
+#---------------------
+
+estimate_IPBES <- list()
+estimate_IPBES_2 <- list()
+se_IPBES <- list()
+
+for(i in 1:16){
+
+	estimate_IPBES[[i]] <- IUCN_tab_slope2[[i]]
+	#estimate_IPBES_2[[i]] <- estimate_IPBES[[i]][1]
+	
+	se_IPBES[[i]] <- summary_std_error2[[i]]
+	
+	for(j in 2:(length(IUCN_tab_slope[[i]])-1)){
+		if(is.na(estimate_IPBES[[i]][j])){
+			estimate_IPBES[[i]][j] <- 0
+		} else {
+				estimate_IPBES[[i]][j] <- na.omit(IUCN_tab_slope2[[i]][j])
+				}	
+	}
+}
+
+
+
+for(i in 1:16){
+estimate_IPBES[[i]][is.na(estimate_IPBES[[i]])] <- 0
+se_IPBES[[i]][is.na(se_IPBES[[i]])] <- 0
+}
+
+
+p_col <- list()
+
+for(i in 1:16){
+	p_col[[i]] <- rep('black', 7)
+	for(j in 1:7){
+		if(estimate_IPBES[[i]][j] == 0){p_col[[i]][j] <- 'white'}
+	}
+}
+
+title_plot <- c('Caribbean', 'Central Africa', 'Central-Western Europe', 'Central Asia', 'East Africa', 'Eastern Europe', 'Mesoamerica', 'North-Africa', 'North-America', 'North-East Asia', 'Oceania', 'South-America', 'South-Asia', 'South-East Asia', 'Southern Africa', 'West Africa')
+
+pa_nb <- list(
+c('4','','20','6','13','','59'),
+c('1','2','6','','12','',''),
+c('334', '34','50','146','2380','1519','36'),
+c('26','','13','','47','',''),
+c('6','3','64','10','66','1','44'),
+c('95','','54','346','1735','47','59'),
+c('6','1','46','14','83','10','64'),
+c('','','6','1','1','1','1'),
+c('161','169','162','151','113','1080','90'),
+c('13','14','28','3','1366','433','64'),
+c('396','7','62','1134','125','67','39'),
+c('92','','254','31','105','137','269'),
+c('5','98','84','','304','22','17'),
+c('188','2','128','20','74','111','22'),
+c('','6','60','1','12','8','37'),
+c('','','16','1','23','','7'))
+
+Forest_slope
+
+Forest_pv <- c('','','*','','','*','','','*','','','***','***','**','**','***')
+Forest_y <- c(-0.8,-1.5,-2.9,-1,-2.8,-0.5,-1.5,12,-2.3,-2.1,-2.1,-1,-1.5,-2.5,-0.8,0.1)
+
+par(mfrow=c(4,4))
+par(mar=c(3,2,2.5,1))
+
+for(i in 1:16){
+	y1 <- na.omit(estimate_IPBES[[i]]) - na.omit(se_IPBES[[i]])
+	y2 <- na.omit(estimate_IPBES[[i]]) + na.omit(se_IPBES[[i]])
+	plot(estimate_IPBES[[i]], xlim=c(0.8,8.2), ylim=c(min(y1), max(y2)+0.4), pch=4, xaxt='n',  xlab=NULL, ylab=NULL, cex.lab=1.3, col= p_col[[i]]) #, xlab='IUCN category', ylab='Estimate',
+	arrows(1:length(estimate_IPBES[[i]]), y1, 1:length(estimate_IPBES[[i]]) ,y2, code=3, angle=90, length=0.05) 
+	axis(1, labels=c('Ia','Ib','II','III','IV','V','VI'), at=1:7)
+	mtext(title_plot[[i]])
+	text(y= Forest_y[i], x=8, paste('F=',round(Forest_slope[[i]],2),Forest_pv[i]), cex=0.85, srt=90)
+	text(y= c(y2[1]+0.35, y2[2]+0.35, y2[3]+0.35, y2[4]+0.35, y2[5]+0.35, y2[6]+0.35, y2[7]+0.35), x=1:7, pa_nb[[i]], cex=0.85)
+}
