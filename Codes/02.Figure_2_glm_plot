@@ -1,0 +1,80 @@
+
+
+
+## Figure 2
+#---------------------
+
+## Load library
+# install.packages('survey')
+library(survey) # for svyglm 
+
+## Table for analysis
+##-------
+
+forest_loss_perc <- read.csv(".../Forest_loss_tab.csv", h=T)
+
+# percentage of original forests (compared to PA size in nb of cells)
+forest_orig_norm <- forest_loss_perc$forest_area_nbcell_inPA_2000 / max(forest_loss_perc$forest_area_nbcell_inPA_2000)
+
+# build table
+model_tab <- as.data.frame(cbind(forest_loss_perc$loss_perc_2001_2014/100, forest_loss_perc $iucn, forest_loss_perc$pa_nbcell, forest_orig_norm, forest_loss_perc$country, forest_loss_perc$IPBES_sub))
+colnames(model_tab) <- c('loss_perc_2001_2014', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'country','IPBES_sub')
+head(model_tab, 10)
+
+
+# Merging the categories I-III and IV-VI
+loss_tab_2cat <- data.frame(model_tab, rep(0, dim(forest_loss_perc)[1]))
+loss_tab_2cat[loss_tab_2cat $iucn == 1 | loss_tab_2cat $iucn == 2 | loss_tab_2cat $iucn == 3 | loss_tab_2cat $iucn == 4 ,][,7] <- 1
+loss_tab_2cat[loss_tab_2cat $iucn == 5 | loss_tab_2cat $iucn == 6 | loss_tab_2cat $iucn == 7,][,7] <- 2
+colnames(loss_tab_2cat) <- c('Floss_perc', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'country', 'IPBES_sub', 'cat_IIII_IVVI')
+
+summary(loss_tab_2cat)
+
+## Merged table
+
+glm_tab2 <- data.frame(Y= loss_tab_2cat $Floss_perc, iucn= loss_tab_2cat$iucn, IUCN_merged=as.factor(loss_tab_2cat $cat_IIII_IVVI), Forest_2000_nb=loss_tab_2cat$Forest_2000_cells, Forest_2000_norm=loss_tab_2cat$Forest_2000_cells/max(loss_tab_2cat$Forest_2000_cells))
+
+summary(glm_tab2)
+
+## IUCN cat model
+
+model1 <- svyglm(Y ~ as.factor(iucn) + Forest_2000_norm, 
+ design=svydesign(ids=~1, weights=~Forest_2000_nb, data= glm_tab2), 
+ family='binomial')
+ 
+summary(model1)
+
+## IUCN merged model
+
+model2 <- svyglm(Y ~ IUCN_merged + Forest_2000_norm, 
+ design=svydesign(ids=~1, weights=~Forest_2000_nb, data= glm_tab2), 
+ family='binomial')
+
+summary(model2)
+
+## Plot 
+
+se_merged <- summary(model2)$coefficients[-3,2]
+se <- summary(model1)$coefficients[-3,2]
+
+se_cat <- c(se[1], se[2], se[3], se[4], se_merged[1],  se[5], se[6], se[7], se_merged[2])
+
+estimate_m2 <- model2$coefficients
+estimate_merged <- c(estimate_m2[1], estimate_m2[1]+ estimate_m2[2])
+
+plot(estimate_merged, pch=5,xaxt='n', xlim=c(0.5,2.5), ylim=c(-4,-2.6), xlab='IUCN category', ylab='Estimate', cex.lab=1.3) # pch=3
+arrows(1:2, estimate_merged-se_merged, 1:2, estimate_merged + se_merged, code=3, angle=90)  
+axis(1, labels=c('Ia-III','IV-VI'), at=1:2)
+
+estimate <- summary(model1)$coefficients
+
+estimate_cat <- c(estimate[1], estimate[1]+estimate[2], estimate[1]+estimate[3], estimate[1]+estimate[4], estimate_merged[1], estimate[1]+estimate[5], estimate[1]+estimate[6], estimate[1]+estimate[7], estimate_merged[2])
+
+
+plot(estimate_cat, pch=c(3,3,3,3,5,3,3,3,5), xlim=c(0.8,10), ylim=c(-4.6,-2.5), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2, frame.plot=F) #, frame.plot=F
+arrows(1:9, estimate_cat-se_cat, 1:9, estimate_cat + se_cat, code=3, angle=90) 
+axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
+
+
+
+
