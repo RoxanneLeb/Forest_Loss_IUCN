@@ -2,7 +2,7 @@
 
 ### I. Data
 
-Forest_loss_tab.csv : all data needed in this study present in this file.
+All data needed in this study present in this folder, with Forest_loss_tab.csv having the main resources.
 
 ### II. Codes
 
