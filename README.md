@@ -2,6 +2,8 @@
 
 ### I. Data
 
+Forest_loss_tab.csv : all data needed in this study present in this file.
 
+### II. Codes
 
-### II. Script
+Codes used to produce the results of the study, using the Forest_loss_tab.csv data.
