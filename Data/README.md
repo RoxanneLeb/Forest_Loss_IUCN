@@ -9,7 +9,6 @@ nwdpa_subreg_forest_area.csv = forest area outside the wdpa in 2000
 wdpa_subreg_forest_area.csv = forest area inside the wdpa in 2000
 
 
-For Table 2:
 
 For each IPBES subregion:
 
