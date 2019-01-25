@@ -1,6 +1,4 @@
 
-
-
 ## Figure 2
 #---------------------
 
@@ -11,19 +9,19 @@ library(survey) # for svyglm
 ## Table for analysis
 ##-------
 
-forest_loss_perc <- read.csv(".../Forest_loss_tab.csv", h=T)
+forest_tab <- read.csv(".../Forest_loss_tab.csv", h=T)
 
 # percentage of original forests (compared to PA size in nb of cells)
-forest_orig_norm <- forest_loss_perc$forest_area_nbcell_inPA_2000 / max(forest_loss_perc$forest_area_nbcell_inPA_2000)
+forest_orig_norm <- forest_tab$forest_area_nbcell_inPA_2000_nbcell_inPA_2000 / max(forest_tab$forest_area_nbcell_inPA_2000_nbcell_inPA_2000)
 
 # build table
-model_tab <- as.data.frame(cbind(forest_loss_perc$loss_perc_2001_2014/100, forest_loss_perc $iucn, forest_loss_perc$pa_nbcell, forest_orig_norm, forest_loss_perc$country, forest_loss_perc$IPBES_sub))
+model_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014/100, forest_tab $iucn, forest_tab$pa_nbcell, forest_orig_norm, forest_tab$country, forest_tab$IPBES_sub))
 colnames(model_tab) <- c('loss_perc_2001_2014', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'country','IPBES_sub')
 head(model_tab, 10)
 
 
 # Merging the categories I-III and IV-VI
-loss_tab_2cat <- data.frame(model_tab, rep(0, dim(forest_loss_perc)[1]))
+loss_tab_2cat <- data.frame(model_tab, rep(0, dim(forest_tab)[1]))
 loss_tab_2cat[loss_tab_2cat $iucn == 1 | loss_tab_2cat $iucn == 2 | loss_tab_2cat $iucn == 3 | loss_tab_2cat $iucn == 4 ,][,7] <- 1
 loss_tab_2cat[loss_tab_2cat $iucn == 5 | loss_tab_2cat $iucn == 6 | loss_tab_2cat $iucn == 7,][,7] <- 2
 colnames(loss_tab_2cat) <- c('Floss_perc', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'country', 'IPBES_sub', 'cat_IIII_IVVI')
@@ -53,6 +51,10 @@ model2 <- svyglm(Y ~ IUCN_merged + Forest_2000_norm,
 summary(model2)
 
 ## Plot 
+##---------------------
+
+# 1. Percentage of loss: (Floss ~ IUCN cat + forest_orig_prec)
+##---------------------
 
 se_merged <- summary(model2)$coefficients[-3,2]
 se <- summary(model1)$coefficients[-3,2]
@@ -74,6 +76,85 @@ estimate_cat <- c(estimate[1], estimate[1]+estimate[2], estimate[1]+estimate[3],
 plot(estimate_cat, pch=c(3,3,3,3,5,3,3,3,5), xlim=c(0.8,10), ylim=c(-4.6,-2.5), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2, frame.plot=F) #, frame.plot=F
 arrows(1:9, estimate_cat-se_cat, 1:9, estimate_cat + se_cat, code=3, angle=90) 
 axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
+
+
+## 2. Trend of loss : (Tloss ~ IUCN cat + forest_orig_prec)
+##---------------------
+
+
+## Model with all IUCN categories + original forest - linear model
+
+
+lm1 <- lm(forest_tab $trend_gls_val_2001_2014 ~ as.factor(forest_tab $iucn) + forest_orig_norm)
+summary(lm1)
+
+
+
+## Model with merged IUCN categories + original forest - linear model
+
+# Merging the categories I-III and IV-VI
+forest_tab1 <- cbind(forest_tab$id, forest_tab$trend_gls_val_2001_2014, forest_tab$iucn, forest_tab$pa_nbcell, forest_tab$forest_area_nbcell_inPA_2000)
+
+forest_tab_2cat <- data.frame(forest_tab1, rep(0, dim(forest_tab)[1]))
+
+colnames(forest_tab_2cat) <- c('id', 'loss_trend_gls_val_2001_2014', 'iucn', 'wdpa_size', 'forest_cell')
+
+forest_tab_2cat[forest_tab_2cat $iucn == 1 | forest_tab_2cat $iucn == 2 | forest_tab_2cat $iucn == 3 | forest_tab_2cat $iucn == 4 ,][,6] <- 1
+forest_tab_2cat[forest_tab_2cat $iucn == 5 | forest_tab_2cat $iucn == 6 | forest_tab_2cat $iucn == 7,][,6] <- 2
+
+colnames(forest_tab_2cat) <- c('id', 'loss_trend_gls_val_2001_2014', 'iucn', 'wdpa_size', 'forest_cell', 'cat_IIII_IVVI')
+
+summary(forest_tab_2cat)
+
+## Linear model
+forest_cell_norm <-  forest_tab_2cat$forest_cell/max( forest_tab_2cat$forest_cell)
+
+lm_2.1 <- lm(loss_trend_gls_val_2001_2014 ~ as.factor(cat_IIII_IVVI) + forest_cell_norm, data= forest_tab_2cat) 
+summary(lm_2.1)
+
+
+
+## Extract coefficients:
+
+estimate_lm1 <- summary(lm1)$coefficients[,1]
+estimate_iucn <- c(estimate_lm1[1], estimate_lm1[1]+ estimate_lm1[2], estimate_lm1[1]+ estimate_lm1[3], estimate_lm1[1]+ estimate_lm1[4], estimate_lm1[1]+ estimate_lm1[5], estimate_lm1[1]+ estimate_lm1[6], estimate_lm1[1]+ estimate_lm1[7])
+
+estimate_lm2.1 <- summary(lm_2.1)$coefficients[,1]
+estimate_merged <- c(estimate_lm2.1[1], estimate_lm2.1[1]+ estimate_lm2.1[2])
+
+se_iucn <- summary(lm1)$coefficients[,2]
+
+se_merged <- summary(lm_2.1)$coefficients[,2]
+
+
+se_plot <- c(se_iucn[1], se_iucn[1]+ se_iucn[2], se_iucn[1]+ se_iucn[3], se_iucn[1]+ se_iucn[4], se_merged[1], se_iucn[1]+ estimate_iucn[5], se_iucn[1]+ se_iucn[6], se_iucn[1]+ se_iucn[7], se_merged[2])
+
+
+estimate_plot <- c(estimate_iucn[1], estimate_iucn[2], estimate_iucn[3], estimate_iucn[4], estimate_merged[1], estimate_iucn[5], estimate_iucn[6], estimate_iucn[7], estimate_merged[2])
+
+
+plot(estimate_plot, pch=c(3,3,3,3,5,3,3,3,5), xlim=c(0.8,10), ylim=c(-0.007,0.035), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
+arrows(1:9, estimate_plot-se_plot, 1:9, estimate_plot + se_plot, code=3, angle=90) 
+axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
+
+
+
+## FINAL PLOT par(mfrow=c(1,2))
+
+par(mfrow=c(1,2))
+
+plot(estimate_cat, pch=c(4,4,4,4,1,4,4,4,1), lwd=1, xlim=c(0.8,10), ylim=c(-4.6,-2.5), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
+arrows(1:9, estimate_cat-se_cat, 1:9, estimate_cat + se_cat, code=3, length=0.2, angle=90) 
+axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
+text(x=1.5, y=-2.5,  bquote(paste('F'['x']*'=', .(round(estimate[1]+ estimate[3],2) ))))
+text(x=1.5, y=-2.6,  bquote(paste('F'['o']*'=', .(round(estimate_m2[1]+ estimate_m2[3],2) ))))
+
+plot(estimate_plot, pch=c(4,4,4,4,1,4,4,4,1), xlim=c(0.8,10), ylim=c(-0.007,0.035), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
+arrows(1:9, estimate_plot-se_plot, 1:9, estimate_plot + se_plot, code=3, length=0.2, angle=90) 
+axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
+text(x=1.5, y=0.035,  bquote(paste('F'['x']*'=', .(round(estimate_lm1[1]+ estimate_lm1[3],2)),'***' )))
+text(x=1.5, y=0.033,  bquote(paste('F'['o']*'=', .(round(estimate_lm2.1[1]+ estimate_lm2.1[3],2)), '***' )))
+
 
 
 
