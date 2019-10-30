@@ -1,4 +1,5 @@
 
+
 ## Figure 2
 #---------------------
 
@@ -9,46 +10,58 @@ library(survey) # for svyglm
 ## Table for analysis
 ##-------
 
-forest_tab <- read.csv(".../Forest_loss_tab.csv", h=T)
+forest_tab <- read.csv("/Users/administrateur/Documents/PhD/Paper2_Deforestation/Submission/data_to_publish/Forest_loss_tab2.csv", h=T)
+
+dim(forest_tab) # 15281
+summary(forest_tab)
 
 # percentage of original forests (compared to PA size in nb of cells)
-forest_orig_norm <- forest_tab$forest_area_nbcell_inPA_2000_nbcell_inPA_2000 / max(forest_tab$forest_area_nbcell_inPA_2000_nbcell_inPA_2000)
+forest_orig_norm <- forest_tab$forest_area_nbcell_inPA_2000 / max(forest_tab$forest_area_nbcell_inPA_2000)
+
+# normalize road density (0-1)
+road_norm <- forest_tab$mean9center / max(forest_tab$mean9center)
+
+# normalize pop density (0-1)
+pop_norm <- forest_tab$pop_mean_9 / max(forest_tab$pop_mean_9)
 
 # build table
-model_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014/100, forest_tab $iucn, forest_tab$pa_nbcell, forest_orig_norm, forest_tab$country, forest_tab$IPBES_sub))
-colnames(model_tab) <- c('loss_perc_2001_2014', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'country','IPBES_sub')
+model_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014/100, forest_tab $iucn, forest_tab$pa_nbcell, forest_orig_norm, road_norm, pop_norm, forest_tab$IPBES_sub))
+colnames(model_tab) <- c('loss_perc_2001_2014', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'road', 'pop', 'IPBES_sub')
 head(model_tab, 10)
 
 
 # Merging the categories I-III and IV-VI
 loss_tab_2cat <- data.frame(model_tab, rep(0, dim(forest_tab)[1]))
-loss_tab_2cat[loss_tab_2cat $iucn == 1 | loss_tab_2cat $iucn == 2 | loss_tab_2cat $iucn == 3 | loss_tab_2cat $iucn == 4 ,][,7] <- 1
-loss_tab_2cat[loss_tab_2cat $iucn == 5 | loss_tab_2cat $iucn == 6 | loss_tab_2cat $iucn == 7,][,7] <- 2
-colnames(loss_tab_2cat) <- c('Floss_perc', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'country', 'IPBES_sub', 'cat_IIII_IVVI')
+loss_tab_2cat[loss_tab_2cat $iucn == 1 | loss_tab_2cat $iucn == 2 | loss_tab_2cat $iucn == 3 | loss_tab_2cat $iucn == 4 ,][,8] <- 1
+loss_tab_2cat[loss_tab_2cat $iucn == 5 | loss_tab_2cat $iucn == 6 | loss_tab_2cat $iucn == 7,][,8] <- 2
+colnames(loss_tab_2cat) <- c('Floss_perc', 'iucn', 'pa_nbcell', 'Forest_2000_cells', 'road', 'pop', 'IPBES_sub', 'cat_IIII_IVVI')
 
 summary(loss_tab_2cat)
 
 ## Merged table
 
-glm_tab2 <- data.frame(Y= loss_tab_2cat $Floss_perc, iucn= loss_tab_2cat$iucn, IUCN_merged=as.factor(loss_tab_2cat $cat_IIII_IVVI), Forest_2000_nb=loss_tab_2cat$Forest_2000_cells, Forest_2000_norm=loss_tab_2cat$Forest_2000_cells/max(loss_tab_2cat$Forest_2000_cells))
+glm_tab2 <- data.frame(Y= loss_tab_2cat $Floss_perc, iucn= loss_tab_2cat$iucn, IUCN_merged=as.factor(loss_tab_2cat $cat_IIII_IVVI), Forest_2000_nb=loss_tab_2cat$Forest_2000_cells, Forest_2000_norm=loss_tab_2cat$Forest_2000_cells/max(loss_tab_2cat$Forest_2000_cells), road=loss_tab_2cat$road, pop=loss_tab_2cat$pop)
 
 summary(glm_tab2)
 
 ## IUCN cat model
 
-model1 <- svyglm(Y ~ as.factor(iucn) + Forest_2000_norm, 
+model1 <- svyglm(Y ~ as.factor(iucn) + road + pop + Forest_2000_norm, 
  design=svydesign(ids=~1, weights=~Forest_2000_nb, data= glm_tab2), 
  family='binomial')
  
 summary(model1)
 
-## IUCN merged model
 
-model2 <- svyglm(Y ~ IUCN_merged + Forest_2000_norm, 
+## IUCN merged model
+##------------------
+
+model2 <- svyglm(Y ~ IUCN_merged + road + pop + Forest_2000_norm, 
  design=svydesign(ids=~1, weights=~Forest_2000_nb, data= glm_tab2), 
  family='binomial')
 
 summary(model2)
+
 
 ## Plot 
 ##---------------------
@@ -56,106 +69,228 @@ summary(model2)
 # 1. Percentage of loss: (Floss ~ IUCN cat + forest_orig_prec)
 ##---------------------
 
-se_merged <- summary(model2)$coefficients[-3,2]
-se <- summary(model1)$coefficients[-3,2]
+se_merged <- summary(model2)$coefficients[,2]
+se <- summary(model1)$coefficients[,2]
 
-se_cat <- c(se[1], se[2], se[3], se[4], se_merged[1],  se[5], se[6], se[7], se_merged[2])
+se_loss_iucn <- c(se[1], se[2], se[3], se[4], se_merged[1],  se[5], se[6], se[7], se_merged[2])
 
 estimate_m2 <- model2$coefficients
-estimate_merged <- c(estimate_m2[1], estimate_m2[1]+ estimate_m2[2])
+estimate_M_loss_iucn <- c(estimate_m2[1], estimate_m2[1]+ estimate_m2[2])
 
-plot(estimate_merged, pch=5,xaxt='n', xlim=c(0.5,2.5), ylim=c(-4,-2.6), xlab='IUCN category', ylab='Estimate', cex.lab=1.3) # pch=3
-arrows(1:2, estimate_merged-se_merged, 1:2, estimate_merged + se_merged, code=3, angle=90)  
+plot(estimate_M_loss_var, pch=5,xaxt='n', xlim=c(0.5,2.5), ylim=c(-4,-2.6), xlab='IUCN category', ylab='Estimate', cex.lab=1.3) # pch=3
+arrows(1:2, estimate_M_loss_var-se_merged[c(1,2)], 1:2, estimate_M_loss_var + se_merged[c(1,2)], code=3, angle=90)  
 axis(1, labels=c('Ia-III','IV-VI'), at=1:2)
 
 estimate <- summary(model1)$coefficients
 
-estimate_cat <- c(estimate[1], estimate[1]+estimate[2], estimate[1]+estimate[3], estimate[1]+estimate[4], estimate_merged[1], estimate[1]+estimate[5], estimate[1]+estimate[6], estimate[1]+estimate[7], estimate_merged[2])
+estimate_loss_iucn <- c(estimate[1], estimate[1]+estimate[2], estimate[1]+estimate[3], estimate[1]+estimate[4], estimate_M_loss_iucn[1], estimate[1]+estimate[5], estimate[1]+estimate[6], estimate[1]+estimate[7], estimate_M_loss_iucn[2])
 
 
-plot(estimate_cat, pch=c(3,3,3,3,5,3,3,3,5), xlim=c(0.8,10), ylim=c(-4.6,-2.5), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2, frame.plot=F) #, frame.plot=F
-arrows(1:9, estimate_cat-se_cat, 1:9, estimate_cat + se_cat, code=3, angle=90) 
+plot(estimate_loss_iucn, pch=c(3,3,3,3,5,3,3,3,5), xlim=c(0.8,10), ylim=c(-4.6,-2.5), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2, frame.plot=F) #, frame.plot=F
+arrows(1:9, estimate_loss_iucn-se_loss_iucn, 1:9, estimate_loss_iucn + se_loss_iucn, code=3, angle=90) 
 axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
 
 
-## 2. Trend of loss : (Tloss ~ IUCN cat + forest_orig_prec)
-##---------------------
 
+
+## Extract coefficients: Road pop density, original forest
+#--------------
+
+estimate_m1 <- summary(model1)$coefficients[,1]
+estimate_loss_S_var <- c(estimate_m1[1]+ estimate_m1[8], estimate_m1[1]+ estimate_m1[9], estimate_m1[1]+ estimate_m1[10])
+
+estimate_m2 <- summary(model2)$coefficients[,1]
+estimate_M_loss_var <- c(estimate_m2[1]+ estimate_m2[3], estimate_m2[1]+ estimate_m2[4], estimate_m2[1]+ estimate_m2[5])
+
+#se_loss_iucn <- summary(model1)$coefficients[,2]
+
+se_loss_merged <- summary(model2)$coefficients[,2]
+
+se_loss_var <- c(tail(summary(model1)$coefficients[,2], 3), tail(summary(model2)$coefficients[,2], 3))
+
+estimate_loss_var <- c(estimate_loss_S_var[1], estimate_loss_S_var[2], estimate_loss_S_var[3], 
+estimate_M_loss_var[1], estimate_M_loss_var[2], estimate_loss_S_var[3])
+
+
+plot(estimate_loss_var, pch=c(3,3,3,5,5,5), xlim=c(0.8,6.2), ylim=c(-8,-3), xaxt='n', xlab='Variables', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #
+arrows(1:6, estimate_loss_var-se_loss1, 1:6, estimate_loss_var + se_loss1, code=3, angle=90) 
+axis(1, labels=c('Road','Population','Forest','Road','Population','Forest'), at=1:6, cex.axis=1.2)
+
+## Coefficient of models differenciating IUCN regions similar to the one when we merge regions
+
+
+
+## 2. Trend of loss : (Tloss ~ IUCN cat + road + pop + forest_orig_prec)
+##---------------------
 
 ## Model with all IUCN categories + original forest - linear model
 
-
-lm1 <- lm(forest_tab $trend_gls_val_2001_2014 ~ as.factor(forest_tab $iucn) + forest_orig_norm)
+lm1 <- lm(forest_tab $trend_gls_val_2001_2014 ~ as.factor(forest_tab $iucn) + road_norm + pop_norm + forest_orig_norm)
 summary(lm1)
 
 
-
-## Model with merged IUCN categories + original forest - linear model
+## Linear Model with merged IUCN categories + road + pop + original forest  
 
 # Merging the categories I-III and IV-VI
-forest_tab1 <- cbind(forest_tab$id, forest_tab$trend_gls_val_2001_2014, forest_tab$iucn, forest_tab$pa_nbcell, forest_tab$forest_area_nbcell_inPA_2000)
+forest_tab1 <- cbind(forest_tab$id, forest_tab$trend_gls_val_2001_2014, forest_tab$iucn, road_norm, pop_norm, forest_tab$forest_area_nbcell_inPA_2000)
 
 forest_tab_2cat <- data.frame(forest_tab1, rep(0, dim(forest_tab)[1]))
 
-colnames(forest_tab_2cat) <- c('id', 'loss_trend_gls_val_2001_2014', 'iucn', 'wdpa_size', 'forest_cell')
+colnames(forest_tab_2cat) <- c('id', 'loss_trend_gls_val_2001_2014', 'iucn', 'road', 'pop', 'forest_cell', 'cat_IIII_IVVI')
 
-forest_tab_2cat[forest_tab_2cat $iucn == 1 | forest_tab_2cat $iucn == 2 | forest_tab_2cat $iucn == 3 | forest_tab_2cat $iucn == 4 ,][,6] <- 1
-forest_tab_2cat[forest_tab_2cat $iucn == 5 | forest_tab_2cat $iucn == 6 | forest_tab_2cat $iucn == 7,][,6] <- 2
-
-colnames(forest_tab_2cat) <- c('id', 'loss_trend_gls_val_2001_2014', 'iucn', 'wdpa_size', 'forest_cell', 'cat_IIII_IVVI')
+forest_tab_2cat[forest_tab_2cat $iucn == 1 | forest_tab_2cat $iucn == 2 | forest_tab_2cat $iucn == 3 | forest_tab_2cat $iucn == 4 ,][,7] <- 1
+forest_tab_2cat[forest_tab_2cat $iucn == 5 | forest_tab_2cat $iucn == 6 | forest_tab_2cat $iucn == 7,][,7] <- 2
 
 summary(forest_tab_2cat)
 
 ## Linear model
 forest_cell_norm <-  forest_tab_2cat$forest_cell/max( forest_tab_2cat$forest_cell)
 
-lm_2.1 <- lm(loss_trend_gls_val_2001_2014 ~ as.factor(cat_IIII_IVVI) + forest_cell_norm, data= forest_tab_2cat) 
+lm_2.1 <- lm(loss_trend_gls_val_2001_2014 ~ as.factor(cat_IIII_IVVI) + road_norm + pop_norm + forest_orig_norm, data= forest_tab_2cat) 
 summary(lm_2.1)
 
 
-
-## Extract coefficients:
+## Extract coefficients: Forest trend
+#--------------
 
 estimate_lm1 <- summary(lm1)$coefficients[,1]
-estimate_iucn <- c(estimate_lm1[1], estimate_lm1[1]+ estimate_lm1[2], estimate_lm1[1]+ estimate_lm1[3], estimate_lm1[1]+ estimate_lm1[4], estimate_lm1[1]+ estimate_lm1[5], estimate_lm1[1]+ estimate_lm1[6], estimate_lm1[1]+ estimate_lm1[7])
+
+estimate_trend_S <- c(estimate_lm1[1], estimate_lm1[1]+ estimate_lm1[2], estimate_lm1[1]+ estimate_lm1[3], estimate_lm1[1]+ estimate_lm1[4], estimate_lm1[1]+ estimate_lm1[5], estimate_lm1[1]+ estimate_lm1[6], estimate_lm1[1]+ estimate_lm1[7])
+
+estimate_trend_S_var <- c(estimate_lm1[1]+ estimate_lm1[8], estimate_lm1[1]+ estimate_lm1[9], estimate_lm1[1]+ estimate_lm1[10])
 
 estimate_lm2.1 <- summary(lm_2.1)$coefficients[,1]
-estimate_merged <- c(estimate_lm2.1[1], estimate_lm2.1[1]+ estimate_lm2.1[2])
+estimate_M_trend <- c(estimate_lm2.1[1], estimate_lm2.1[1]+ estimate_lm2.1[2])
 
-se_iucn <- summary(lm1)$coefficients[,2]
+se_S_trend <- summary(lm1)$coefficients[,2]
 
-se_merged <- summary(lm_2.1)$coefficients[,2]
+se_M_trend <- summary(lm_2.1)$coefficients[,2]
 
+estimate_trend_SM <- c(estimate_trend_S[1], estimate_trend_S[2], estimate_trend_S[3], estimate_trend_S[4], estimate_M_trend[1], estimate_trend_S[5], estimate_trend_S[6], estimate_trend_S[7], estimate_M_trend[2])
 
-se_plot <- c(se_iucn[1], se_iucn[1]+ se_iucn[2], se_iucn[1]+ se_iucn[3], se_iucn[1]+ se_iucn[4], se_merged[1], se_iucn[1]+ estimate_iucn[5], se_iucn[1]+ se_iucn[6], se_iucn[1]+ se_iucn[7], se_merged[2])
-
-
-estimate_plot <- c(estimate_iucn[1], estimate_iucn[2], estimate_iucn[3], estimate_iucn[4], estimate_merged[1], estimate_iucn[5], estimate_iucn[6], estimate_iucn[7], estimate_merged[2])
+se_trend_SM <- c(se_S_trend[1], se_S_trend[1]+ se_S_trend[2], se_S_trend[1]+ se_S_trend[3], se_S_trend[1]+ se_S_trend[4], se_M_trend[1], se_S_trend[1]+ se_S_trend[5], se_S_trend[1]+ se_S_trend[6], se_S_trend[1]+ se_S_trend[7], se_M_trend[2])
 
 
-plot(estimate_plot, pch=c(3,3,3,3,5,3,3,3,5), xlim=c(0.8,10), ylim=c(-0.007,0.035), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
-arrows(1:9, estimate_plot-se_plot, 1:9, estimate_plot + se_plot, code=3, angle=90) 
+plot(estimate_trend_SM, pch=c(3,3,3,3,5,3,3,3,5), xlim=c(0.8,10), ylim=c(-0.007,0.035), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
+arrows(1:9, estimate_trend_SM-se_trend_SM, 1:9, estimate_trend_SM + se_trend_SM, code=3, angle=90) 
 axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
 
 
+## Extract coefficients: Road pop density, original forest
+#--------------
 
-## FINAL PLOT par(mfrow=c(1,2))
+estimate_SM_iucn <- c(estimate[1], estimate[1]+estimate[2], estimate[1]+estimate[3], estimate[1]+estimate[4], estimate_M_loss_var[1], estimate[1]+estimate[5], estimate[1]+estimate[6], estimate[1]+estimate[7], estimate_M_loss_var[2])
+
+estimate_lm2.1 <- summary(lm_2.1)$coefficients[,1]
+
+estimate_trend_M_var <- c(estimate_lm2.1[1]+ estimate_lm2.1[3], estimate_lm2.1[1]+ estimate_lm2.1[4], estimate_lm2.1[1]+ estimate_lm2.1[5])
+
+estimate_lm1 <- summary(lm1)$coefficients[,1]
+
+estimate_trend_iucn <- c(estimate_lm1[1], estimate_lm1[1]+ estimate_lm1[2], estimate_lm1[1]+ estimate_lm1[3], estimate_lm1[1]+ estimate_lm1[4], estimate_lm2.1[1], estimate_lm1[1]+ estimate_lm1[5], estimate_lm1[1]+ estimate_lm1[6], estimate_lm1[1]+ estimate_lm1[7], estimate_lm2.1[1]+estimate_lm2.1[2])
+
+se_trend_iucn <- summary(lm1)$coefficients[,2]
+
+se_trend_merged <- summary(lm_2.1)$coefficients[,2]
+
+se_trend_var <- c(se_trend_iucn[8], se_trend_iucn[9], se_trend_iucn[10], se_trend_merged[3], se_trend_merged[4], se_trend_merged[5])
+
+estimate_trend_var <- c(estimate_trend_S_var[1], estimate_trend_S_var[2], estimate_trend_S_var[3], 
+estimate_trend_M_var[1], estimate_trend_M_var[2], estimate_trend_M_var[3])
+
+
+plot(estimate_trend_var, pch=c(3,3,3,5,5,5), xlim=c(0.8,6.2), ylim=c(-0.01,0.20), xaxt='n', xlab='Variables', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, 
+arrows(1:6, estimate_trend_var-se_trend_var, 1:6, estimate_trend_var + se_trend_var, code=3, angle=90) 
+axis(1, labels=c('Road','Population','Forest','Road','Population','Forest'), at=1:6, cex.axis=1.2)
+
+
+
+
+## FINAL PLOT : IUCN
+
+# pdf("/.../Fig.2_IUCN.pdf", width=13, height=5) # , res=300 , units='in'
+
+se_trend_iucn2 <- c(se_trend_iucn[1], se_trend_iucn[2], se_trend_iucn[3], se_trend_iucn[4], se_trend_merged[1], se_trend_iucn[5], se_trend_iucn[6], se_trend_iucn[7], se_trend_merged[2])
 
 par(mfrow=c(1,2))
 
-plot(estimate_cat, pch=c(4,4,4,4,1,4,4,4,1), lwd=1, xlim=c(0.8,10), ylim=c(-4.6,-2.5), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
-arrows(1:9, estimate_cat-se_cat, 1:9, estimate_cat + se_cat, code=3, length=0.2, angle=90) 
+FL_iucn_pv <- c('***','','','','a','*','','','b')
+FT_iucn_pv <- c('***','','**','***','a','','','','b')
+
+y2 <- estimate_loss_iucn + se_loss_iucn
+y3 <- estimate_trend_iucn + se_trend_iucn2
+
+plot(estimate_loss_iucn, pch=c(4,4,4,4,1,4,4,4,1), lwd=1, xlim=c(0.4,9.6), ylim=c(-4.5,-2.3), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
+arrows(1:9, estimate_loss_iucn-se_loss_iucn, 1:9, estimate_loss_iucn + se_loss_iucn, code=3, length=0.2, angle=90) 
 axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
-text(x=1.5, y=-2.5,  bquote(paste('F'['x']*'=', .(round(estimate[1]+ estimate[3],2) ))))
-text(x=1.5, y=-2.6,  bquote(paste('F'['o']*'=', .(round(estimate_m2[1]+ estimate_m2[3],2) ))))
 
-plot(estimate_plot, pch=c(4,4,4,4,1,4,4,4,1), xlim=c(0.8,10), ylim=c(-0.007,0.035), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
-arrows(1:9, estimate_plot-se_plot, 1:9, estimate_plot + se_plot, code=3, length=0.2, angle=90) 
+text(y= c(y2[1]+0.1, y2[2]+0.1, y2[3]+0.1, y2[4]+0.1, y2[5]+0.1, y2[6]+0.1, y2[7]+0.1, y2[8]+0.1, y2[9]+0.1, y2[10]+0.1, y2[11]+0.1, y2[12]+0.1, y2[13]+0.1, y2[14]+0.1, y2[15]+0.1, y2[16]+0.1), x=1:16, FL_iucn_pv, cex=0.85)
+
+plot(estimate_trend_iucn, pch=c(4,4,4,4,1,4,4,4,1), lwd=1, xlim=c(0.4,9.6), ylim=c(-0.005,0.035), xaxt='n', xlab='IUCN category', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, frame.plot=F
+arrows(1:9, estimate_trend_iucn-se_trend_iucn2, 1:9, estimate_trend_iucn + se_trend_iucn2, code=3, length=0.2, angle=90) 
 axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.2)
-text(x=1.5, y=0.035,  bquote(paste('F'['x']*'=', .(round(estimate_lm1[1]+ estimate_lm1[3],2)),'***' )))
-text(x=1.5, y=0.033,  bquote(paste('F'['o']*'=', .(round(estimate_lm2.1[1]+ estimate_lm2.1[3],2)), '***' )))
+
+text(y= c(y3[1]+0.002, y3[2]+0.002, y3[3]+0.002, y3[4]+0.002, y3[5]+0.002, y3[6]+0.002, y3[7]+0.002, y3[8]+0.002, y3[9]+0.002, y3[10]+0.002, y3[11]+0.002, y3[12]+0.002, y3[13]+0.002, y3[14]+0.002, y3[15]+0.002, y3[16]+0.002), x=1:16, FT_iucn_pv, cex=0.85)
+
+# dev.off()
 
 
 
+## FINAL PLOT : Variables
+
+# pdf("/.../Fig.2_Variables.pdf", width=14, height=5) 
+
+par(mfrow=c(1,2))
+
+FL_variable_pv <- c('**','**','','**','**','')
+FT_variable_pv <- c('***','','***','***','','***')
+
+y4 <- estimate_loss_var + se_loss_var
+y5 <- estimate_trend_var + se_trend_var
+
+plot(estimate_loss_var, pch=c(3,3,3,5,5,5), xlim=c(0.6,6.4), ylim=c(-8,-3.6), xaxt='n', xlab='Variables', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #
+arrows(1:6, estimate_loss_var-se_loss_var, 1:6, estimate_loss_var + se_loss_var, code=3, angle=90) 
+axis(1, labels=c('Road','Population','Forest','Road','Population','Forest'), at=1:6, cex.axis=1.2)
+
+text(y= c(y4[1]+0.1, y4[2]+0.1, y4[3]+0.1, y4[4]+0.1, y4[5]+0.1, y4[6]+0.1, y4[7]+0.1, y4[8]+0.1, y4[9]+0.1, y4[10]+0.1, y4[11]+0.1, y4[12]+0.1, y4[13]+0.1, y4[14]+0.1, y4[15]+0.1, y4[16]+0.1), x=1:16, FL_variable_pv, cex=0.85)
+
+plot(estimate_trend_var, pch=c(3,3,3,5,5,5), xlim=c(0.6,6.4), ylim=c(-0.008,0.19), xaxt='n', xlab='Variables', ylab='Estimate', cex.lab=1.3, cex.axis=1.2) #, 
+arrows(1:6, estimate_trend_var-se_trend_var, 1:6, estimate_trend_var + se_trend_var, code=3, angle=90) 
+axis(1, labels=c('Road','Population','Forest','Road','Population','Forest'), at=1:6, cex.axis=1.2)
+
+text(y= c(y5[1]+0.002, y5[2]+0.002, y5[3]+0.002, y5[4]+0.002, y5[5]+0.002, y5[6]+0.002, y5[7]+0.002, y5[8]+0.002, y5[9]+0.002, y5[10]+0.002, y5[11]+0.002, y5[12]+0.002, y5[13]+0.002, y5[14]+0.002, y5[15]+0.002, y5[16]+0.002), x=1:16, FT_variable_pv, cex=0.85)
+
+# dev.off()
 
 
+## FINAL PLOT : IUCN and Variables
+
+# pdf("/.../Fig.2_IUCN_Var.pdf", width=13, height=8) # horizontal
+#par(mfrow=c(2,2))
+#par(mar=c(7,6,1,1)) # bottom, left, top, and right.
+
+plot(estimate_loss_iucn, pch=c(4,4,4,4,1,4,4,4,1), lwd=1, xlim=c(0.4,9.6), ylim=c(-4.5,-2.3), xaxt='n', frame.plot=F, xlab='IUCN category', ylab='Estimate Forest Loss', cex.lab=2, cex.axis=1.5) #, frame.plot=F
+arrows(1:9, estimate_loss_iucn-se_loss_iucn, 1:9, estimate_loss_iucn + se_loss_iucn, code=3, length=0.2, angle=90) 
+axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.4)
+
+text(y= c(y2[1]+0.1, y2[2]+0.1, y2[3]+0.1, y2[4]+0.1, y2[5]+0.1, y2[6]+0.1, y2[7]+0.1, y2[8]+0.1, y2[9]+0.1, y2[10]+0.1, y2[11]+0.1, y2[12]+0.1, y2[13]+0.1, y2[14]+0.1, y2[15]+0.1, y2[16]+0.1), x=1:16, FL_iucn_pv, cex=1.5)
+
+plot(estimate_trend_iucn, pch=c(4,4,4,4,1,4,4,4,1), lwd=1, xlim=c(0.4,9.6), ylim=c(0,0.035), xaxt='n', frame.plot=F, xlab='IUCN category', ylab='Estimate Forest Trend', cex.lab=2, cex.axis=1.5) #, frame.plot=F
+arrows(1:9, estimate_trend_iucn-se_trend_iucn2, 1:9, estimate_trend_iucn + se_trend_iucn2, code=3, length=0.2, angle=90) 
+axis(1, labels=c('Ia','Ib','II','III', 'Ia-III', 'IV','V','VI', 'IV-VI'), at=1:9, cex.axis=1.4)
+
+text(y= c(y3[1]+0.002, y3[2]+0.002, y3[3]+0.002, y3[4]+0.002, y3[5]+0.002, y3[6]+0.002, y3[7]+0.002, y3[8]+0.002, y3[9]+0.002, y3[10]+0.002, y3[11]+0.002, y3[12]+0.002, y3[13]+0.002, y3[14]+0.002, y3[15]+0.002, y3[16]+0.002), x=1:16, FT_iucn_pv, cex=1.5)
+
+plot(estimate_loss_var, pch=c(4,4,4,1,1,1), xlim=c(0.6,6.4), ylim=c(-8,-3.6), xaxt='n', frame.plot =F, xlab='Variables', ylab='Estimate Forest Loss', cex.lab=2, cex.axis=1.5) #
+arrows(1:6, estimate_loss_var-se_loss_var, 1:6, estimate_loss_var + se_loss_var, code=3, angle=90) 
+axis(1, labels=c('Road','Population','Forest','Road','Population','Forest'), at=1:6, cex.axis=1.3)
+
+text(y= c(y4[1]+0.1, y4[2]+0.1, y4[3]+0.1, y4[4]+0.1, y4[5]+0.1, y4[6]+0.1, y4[7]+0.1, y4[8]+0.1, y4[9]+0.1, y4[10]+0.1, y4[11]+0.1, y4[12]+0.1, y4[13]+0.1, y4[14]+0.1, y4[15]+0.1, y4[16]+0.1), x=1:16, FL_variable_pv, cex=1.5)
+
+plot(estimate_trend_var, pch=c(4,4,4,1,1,1), xlim=c(0.6,6.4), ylim=c(-0.008,0.19), xaxt='n', frame.plot =F, xlab='Variables', ylab='Estimate Forest Trend', cex.lab=2, cex.axis=1.5) #, 
+arrows(1:6, estimate_trend_var-se_trend_var, 1:6, estimate_trend_var + se_trend_var, code=3, angle=90) 
+axis(1, labels=c('Road','Population','Forest','Road','Population','Forest'), at=1:6, cex.axis=1.3)
+
+text(y= c(y5[1]+0.006, y5[2]+0.006, y5[3]+0.006, y5[4]+0.006, y5[5]+0.006, y5[6]+0.006, y5[7]+0.006, y5[8]+0.006, y5[9]+0.006, y5[10]+0.006, y5[11]+0.006, y5[12]+0.006, y5[13]+0.006, y5[14]+0.006, y5[15]+0.006, y5[16]+0.006), x=1:16, FT_variable_pv, cex=1.5)
+
+# dev.off()
