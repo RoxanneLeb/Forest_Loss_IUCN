@@ -10,7 +10,7 @@ library(survey) # for svyglm
 ## Table for analysis
 ##-------
 
-forest_tab <- read.csv("/Users/administrateur/Documents/PhD/Paper2_Deforestation/Submission/data_to_publish/Forest_loss_tab2.csv", h=T)
+forest_tab <- read.csv("/.../Forest_loss_tab2.csv", h=T)
 
 dim(forest_tab) # 15281
 summary(forest_tab)
