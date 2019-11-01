@@ -1,301 +1,425 @@
-
 ### Table 2 
+
 ##----
 
-forest_tab <- read.csv(".../Forest_loss_tab.csv", h=T)
 
-head(forest_tab)
-dim(forest_tab)
+
+forest_tab <- read.csv("/.../Forest_loss_tab2.csv", h=T)
+
+# percentage of original forests (compared to PA size in nb of cells)
+forest_orig_norm <- forest_tab$forest_area_nbcell_inPA_2000 / max(forest_tab$forest_area_nbcell_inPA_2000)
+road_norm <- forest_tab $mean9center/ max(forest_tab$mean9center)
+pop_norm <- forest_tab $pop_mean_9/ max(forest_tab$pop_mean_9)
+
 
 
 ## Merged categories
+
 ##------
 
+
 # Merging the categories I-III and IV-VI
-model_tab2 <- data.frame(model_tab, iucn_merged=rep(0, dim(model_tab)[1]))
-model_tab2[model_tab2 $iucn == 1 | model_tab2 $iucn == 2 | model_tab2 $iucn == 3 | model_tab2 $iucn == 4 ,][,6] <- 1
-model_tab2[model_tab2 $iucn == 5 | model_tab2 $iucn == 6 | model_tab2 $iucn == 7,][,6] <- 2
-colnames(model_tab2) <- c('loss_perc_2001_2014', 'iucn', 'wdpa_size', 'Forest_2000_cells', 'IPBES_sub', 'cat_IIII_IVVI')
+
+model_tab2 <- data.frame(forest_tab[,c(2, 7, 9, 25, 26, 27, 30, 35, 36)], iucn_merged=rep(0, dim(forest_tab)[1]))
+head(model_tab2)
+
+model_tab2$mean9center <- forest_tab $mean9center / max(forest_tab $mean9center)
+model_tab2$pop_mean_9 <- forest_tab $pop_mean_9 / max(forest_tab $pop_mean_9)
+model_tab2$loss_perc_2001_2014 <- forest_tab $loss_perc_2001_2014 / max(forest_tab $loss_perc_2001_2014)
+
+model_tab2[model_tab2 $iucn == 1 | model_tab2 $iucn == 2 | model_tab2 $iucn == 3 | model_tab2 $iucn == 4 ,][,10] <- 1
+
+model_tab2[model_tab2 $iucn == 5 | model_tab2 $iucn == 6 | model_tab2 $iucn == 7,][,10] <- 2
+
+colnames(model_tab2) <- c('id', 'IPBES_sub', 'iucn', 'loss_perc_2001_2014', 'trend_val_2001_2014', 'trend_pv_2001_2014', 'Forest_2000_cells', 'road', 'pop', 'cat_IIII_IVVI')
+
+summary(model_tab2)
+
 
 
 ## Column "Ia-III" and "IV-VI "
+
 ##----
+
+library(survey)
 
 n <- rep(0, 11)
 
 IUCN_tab_slope <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+
 IUCN_tab_std_error <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+
 IUCN_tab_t_value <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+
 IUCN_tab_pv <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
 
-forest_cell <- as.numeric(forest_loss_perc$Forest_2000_cells)
-#loss_perc <- loss_tab$loss_perc_2001_2014
+
+# forest_cell <- as.numeric(forest_loss_perc$Forest_2000_cells)
+
+
 
 vif_value <- list()
 
-for(i in 1:16){ # 10, 11, 12, 13: no enough 1 value for model => tau value not assessed
-	#IPBES_tab <- model_tab2[model_tab2 $IPBES_sub == i,]
-	IPBES_iucn_merged <- model_tab2 $cat_IIII_IVVI[model_tab2 $IPBES_sub == i]
-	IPBES_forest_cell <- model_tab2 $Forest_2000_cells[model_tab2 $IPBES_sub == i]
-	IPBES_loss_perc <- model_tab2$loss_perc_2001_2014[model_tab2 $IPBES_sub == i]
-	IPBES_wdpa_size <- model_tab2$wdpa_size[model_tab $IPBES_sub == i]/max(model_tab2 $wdpa_size[model_tab2 $IPBES_sub == i])
 
-model1.2 <- svyglm(Y ~ IUCN_merged + Forest_2000, 
+
+for(i in 1:16){ # 10, 11, 12, 13: no enough 1 value for model => tau value not assessed
+
+	#IPBES_tab <- model_tab2[model_tab2 $IPBES_sub == i,]
+
+	IPBES_iucn_merged <- model_tab2 $cat_IIII_IVVI[as.numeric(model_tab2 $IPBES_sub) == i]
+
+	IPBES_forest_cell <- model_tab2 $Forest_2000_cells[as.numeric(model_tab2 $IPBES_sub) == i]
+
+	IPBES_loss_perc <- model_tab2$loss_perc_2001_2014[as.numeric(model_tab2 $IPBES_sub) == i]
+
+	IPBES_road <- model_tab2$road[as.numeric(model_tab2 $IPBES_sub) == i]
+	
+	IPBES_pop <- model_tab2$pop[as.numeric(model_tab2 $IPBES_sub) == i]
+
+
+model1.2 <- svyglm(Y ~ IUCN_merged + road + pop + Forest_2000, 
+
  design=svydesign(ids=~1, weights=~Forest_2000, 
- data=data.frame(w= IPBES_forest_cell, Y=IPBES_loss_perc, IUCN_merged=as.factor(IPBES_iucn_merged), Forest_2000=IPBES_forest_cell)), 
+
+ data=data.frame(w= IPBES_forest_cell, Y=IPBES_loss_perc, road= IPBES_road, pop= IPBES_pop, IUCN_merged=as.factor(IPBES_iucn_merged), Forest_2000=IPBES_forest_cell)), 
+
  family='binomial')
+
  
+
  	summary_slope <- summary(model1.2)
+
  	
+
  	#vif_value[[i]] <- vif(model1.2)
+
 	
+
 	IUCN_tab_slope[[i]] <- summary_slope$coefficients[,1]
+
 	
+
     summary_std_error <- summary_slope
+
     IUCN_tab_std_error[[i]] <- summary_std_error$coefficients[,2]
+
     
+
     summary_t_value <- summary_slope
+
     IUCN_tab_t_value[[i]] <- summary_t_value$coefficients[,3]
+
     
+
     summary_pv <- summary_slope
+
     IUCN_tab_pv[[i]] <- summary_pv$coefficients[, 4]
+
 }
 
+
+
 IUCN_tab_pv
+
 IUCN_tab_slope 
+
 # (Intercept) = Column 1 of Table 2 "Ia-III" from the Caribbean to West Africa
+
 # Forest_2000 = Column 3 of Table 2 "Forest" from the Caribbean to West Africa
 
+
+
 for(i in 1:16){
+
 col2[i] <- IUCN_tab_slope[[i]][1] + IUCN_tab_slope[[i]][2] } 
+
 col2 # Column 2 of Table 2 "IV-VI"
 
 IUCN_tab_std_error # Column 1 and 2 of Table 2 "Ia-III" and "IV-VI" from the Caribbean to West Africa
+
 IUCN_tab_t_value
 
 
 
 ## Column "Loss (%)" with median and quantiles
+
 ##----
 
+
+
 # Loop to have Global mean, standard deviation for each IPBES subregions
+
 loss_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014, forest_tab $iucn, forest_tab$wdpa_size, forest_tab$country, forest_tab$IPBES_sub))
+
 colnames(loss_tab) <- c('loss_perc_2001_2014', 'iucn', 'wdpa_size', 'country','IPBES_sub')
+
 head(loss_tab, 10)
 
+
+
 IPBES_mean <- matrix(nrow=16, ncol=1)
+
 IPBES_sd <- matrix(nrow=16, ncol=1)
+
 IPBES_median <- matrix(nrow=16, ncol=1)
+
 IPBES_qt1 <- matrix(nrow=16, ncol=1)
+
 IPBES_qt3 <- matrix(nrow=16, ncol=1)
+
+
 
 # Per IPBES subregion (16)
 
+
+
 for(i in 1:16){
+
 			IPBES_median[[i]] <- median(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i], na.rm=T)
+
 			IPBES_qt1[[i]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i], 0.25)
+
 			IPBES_qt3[[i]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i], 0.75)
+
 }
 
+
+
 IPBES_median
+
 IPBES_qt1
+
 IPBES_qt3
 
+
+
 # Loop to have Global mean, standard deviation for each IUCN cat
+
 IUCNglob_mean <- matrix(nrow=1, ncol=7)
+
 IUCNglob_sd <- matrix(nrow=1, ncol=7)
+
 IUCNglob_median <- matrix(nrow=1, ncol=7)
+
 IUCNglob_qt1 <- matrix(nrow=1, ncol=7)
+
 IUCNglob_qt3 <- matrix(nrow=1, ncol=7)
+
+
 
 # Per IUCN category and IPBES subregion (16)
 
+
+
 for(i in 1:7){
+
 			IUCNglob_median[[i]] <- median(loss_tab$loss_perc_2001_2014[loss_tab $iucn == i], na.rm=T)
+
 			IUCNglob_qt1[[i]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i], 0.25)
+
 			IUCNglob_qt3[[i]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i], 0.75)			
+
 }
+
+
 
 IUCNglob_median
+
 IUCNglob_qt1
+
 IUCNglob_qt3
 
+
+
 # Global merge IUCN categories
+
 iucn_merged <- loss_tab$iucn
+
 iucn_merged[loss_tab$iucn == 1 | loss_tab$iucn == 2 |loss_tab$iucn == 3 |loss_tab$iucn == 4] <- 1
+
 iucn_merged[loss_tab$iucn == 5 | loss_tab$iucn == 6 |loss_tab$iucn == 7] <- 2
 
+
+
 IUCNglobal_merged_mean <- matrix(nrow=1, ncol=2)
+
 IUCNglobal_merged_sd <- matrix(nrow=1, ncol=2)
+
 IUCNglobal_merged_median <- matrix(nrow=1, ncol=2)
+
 IUCNglobal_merged_qt1 <- matrix(nrow=1, ncol=2)
+
 IUCNglobal_merged_qt3 <- matrix(nrow=1, ncol=2)
 
+
+
 for(j in 1:2){
+
 			IUCNglobal_merged_median[[j]] <- median(loss_tab$loss_perc_2001_2014[iucn_merged == j], na.rm=T)
+
 			IUCNglobal_merged_qt1[[j]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == j], 0.25)
+
 			IUCNglobal_merged_qt3[[j]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == j], 0.75)			
+
 }
 
+
+
 IUCNglobal_merged_median
+
 IUCNglobal_merged_qt1
+
 IUCNglobal_merged_qt3
 
 
 # Global
+
 mean(loss_tab$loss_perc_2001_2014)
+
 median(loss_tab$loss_perc_2001_2014)
+
 quantile(loss_tab$loss_perc_2001_2014)
 
 
 # Loop to have median, quartiles and numbers of each IUCN category within IPBES subregions
 
+
 loss_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014, forest_tab $iucn, forest_tab$wdpa_size, forest_tab$country, forest_tab$IPBES_sub))
+
 colnames(loss_tab) <- c('loss_perc_2001_2014', 'iucn', 'wdpa_size', 'country','IPBES_sub')
+
 head(loss_tab, 10)
 
+
+
 IUCN_median <- matrix(nrow=16, ncol=7)
+
 IUCN_qt1 <- matrix(nrow=16, ncol=7)
+
 IUCN_qt3 <- matrix(nrow=16, ncol=7)
+
 IUCN_nb <- matrix(nrow=16, ncol=7)
 
+
+
 for(i in 1:16){
+
 	for(j in 1:7){
+
 			IUCN_median[[i,j]] <- median(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i & loss_tab$iucn == j], na.rm=T)
+
 			IUCN_qt1[[i,j]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i & loss_tab$iucn == j], 0.25)
+
 			IUCN_qt3[[i,j]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i & loss_tab$iucn == j], 0.75)	
+
 			IUCN_nb[[i,j]] <- length(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i & loss_tab$iucn == j])
+
 	}
+
 }
+
 
 
 IUCN_median
+
 IUCN_qt1
+
 IUCN_qt3
+
 IUCN_nb
 
+
+
 apply(IUCN_nb, 1, sum)
+
 apply(IUCN_nb, 2, sum)
+
+
 
 # Loop to have  median and quartiles for merged IUCN category within IPBES subregions
 
+
 loss_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014, forest_tab $iucn, forest_tab$wdpa_size, forest_orig_prec, forest_tab$country, forest_tab$IPBES_sub))
+
 colnames(loss_tab) <- c('loss_perc_2001_2014', 'iucn', 'wdpa_size', 'perc_2000_forest_inPA', 'country','IPBES_sub')
+
 head(loss_tab, 10)
 
+
+
 # merge IUCN categories
+
 iucn_merged <- loss_tab$iucn
+
 iucn_merged[loss_tab$iucn == 1 | loss_tab$iucn == 2 |loss_tab$iucn == 3 |loss_tab$iucn == 4] <- 1
+
 iucn_merged[loss_tab$iucn == 5 | loss_tab$iucn == 6 |loss_tab$iucn == 7] <- 2
 
+
+
 IUCNmerged_mean <- matrix(nrow=16, ncol=2)
+
 IUCNmerged_sd <- matrix(nrow=16, ncol=2)
+
 IUCNmerged_median <- matrix(nrow=16, ncol=2)
+
 IUCNmerged_qt1 <- matrix(nrow=16, ncol=2)
+
 IUCNmerged_qt3 <- matrix(nrow=16, ncol=2)
 
+
+
 for(i in 1:16){
+
 	for(j in 1:2){
+
 			IUCNmerged_median[[i,j]] <- median(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i & iucn_merged == j], na.rm=T)
+
 			IUCNmerged_qt1[[i,j]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i & iucn_merged == j], 0.25)
+
 			IUCNmerged_qt3[[i,j]] <- quantile(loss_tab$loss_perc_2001_2014[loss_tab $IPBES_sub == i & iucn_merged == j], 0.75)
+
 	}
+
 }
 
+
+
 IUCNmerged_median
+
 IUCNmerged_qt1
+
 IUCNmerged_qt3
 
 
+
+
+
 ## Column "Ratio in/out" 
+
 ##----
 
 
 # Loss area oustide PAs (600*600 m = 360000 m^2 = 0.36 km^2):
+
 loss_IPBES <- read.table('.../none_wdpa_loss_area.csv', h=F, sep=';')
 
+
+
 loss_IPBES$V2 *1e-6 *2.77
+
 # [1]   4130.3323  85705.5859   1313.3371 183574.7697  50077.6956 727939.7386  45902.2575   1653.9891 785115.4706
+
 #[10]  82690.1200  75853.8430 518906.4197  11486.5517 269374.0149  70968.5622  56297.8021    183.6472
 
+
+
 # Area outside PAs (600*600 m = 360000 m^2 = 0.36 km^2):
+
 area_IPBES <- read.table('.../nwdpa_subreg_forest_area.csv', h=F, sep=';')
+
 area_IPBES
 
+
+
 area_IPBES$V2 *1e-6 *2.77
-
-
-# Percentage of forest loss oustide PAs per IPBES subregion
-loss_IPBES$V2 / area_IPBES$V2 *100
-# [1] 2.4487323 
-# [2] 2.7521571 
-# [3] 0.3526062 
-# [4] 3.2866999 
-# [5] 3.2268583 
-# [6] 3.6003529 
-# [7] 3.6627129 
-# [8] 1.3230152 
-# [9] 5.0200525 
-# [10] 2.0212916
-# [11] 4.4780960 
-# [12] 4.9504366 
-# [13] 0.9001276 
-# [14] 8.5031518 
-# [15] 3.2043893 
-# [16] 4.6153693 
-# [17] 1.1249468
-
-sum(loss_IPBES$V2) / sum(area_IPBES$V2) *100
-# 4.11573 %
-
-# Percentage of forest loss inside PAs per IPBES subregion
-loss_PAs_IPBES <- read.table('.../wdpa_loss_area.csv', h=F, sep=';')
-area_PAs_IPBES <- read.table('.../wdpa_subreg_forest_area.csv', h=F, sep=';')
-
-loss_PAs_IPBES$V2 / area_PAs_IPBES$V2 *100
-# [1] 4.1908267 
-# [2] 0.2865603 
-# [3] 0.1238982 
-# [4] 1.3619494 
-# [5] 0.9650144 
-# [6] 4.2134329 
-# [7] 6.9565039 
-# [8] 2.7083261 
-# [9] 1.0789482 
-# [10] 1.1520381
-# [11] 0.6737377 
-# [12] 1.2125486 
-# [13] 0.5824159 
-# [14] 3.0439414 
-# [15] 1.0039106 
-# [16] 1.3377192       
-# [17] NaN
-
-sum(loss_PAs_IPBES $V2) / sum(area_PAs_IPBES $V2) *100
-# 2.57926
-
-# ratio inside vs outside loss
-(loss_PAs_IPBES$V2 / area_PAs_IPBES$V2 *100) / (loss_IPBES$V2 / area_IPBES$V2 *100)
- # [1] 1.7114271 
- # [2] 0.1041221 
- # [3] 0.3513785 
- # [4] 0.4143820 
- # [5] 0.2990569 
- # [6] 1.1702833 
- # [7] 1.8992763 
- # [8] 2.0470861 
- # [9] 0.2149277 
- # [10] 0.5699515
- # [11] 0.1504518 
- # [12] 0.2449377 
- # [13] 0.6470370 
- # [14] 0.3579780 
- # [15] 0.3132923 
- # [16] 0.2898401       
- # [17] NaN
-
-(sum(loss_PAs_IPBES $V2) / sum(area_PAs_IPBES $V2) *100) / (sum(loss_IPBES$V2) / sum(area_IPBES$V2) *100)
-# 0.6266836
-
-
-
