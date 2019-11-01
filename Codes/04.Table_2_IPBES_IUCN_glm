@@ -4,7 +4,7 @@
 
 
 
-forest_tab <- read.csv("/.../Forest_loss_tab2.csv", h=T)
+forest_tab <- read.csv("/.../Forest_loss_tab.csv", h=T)
 
 # percentage of original forests (compared to PA size in nb of cells)
 forest_orig_norm <- forest_tab$forest_area_nbcell_inPA_2000 / max(forest_tab$forest_area_nbcell_inPA_2000)
