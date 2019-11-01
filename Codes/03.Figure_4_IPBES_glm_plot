@@ -8,15 +8,42 @@
 ##-------
 
 
-forest_tab <- read.csv(".../Forest_loss_tab.csv", h=T)
+forest_tab <- read.csv("/.../Forest_loss_tab2.csv", h=T)
 
 # percentage of original forests (compared to PA size in nb of cells)
 forest_orig_norm <- forest_tab$forest_area_nbcell_inPA_2000 / max(forest_tab$forest_area_nbcell_inPA_2000)
+road_norm <- forest_tab $mean9center/ max(forest_tab$mean9center)
+pop_norm <- forest_tab $pop_mean_9/ max(forest_tab$pop_mean_9)
+
+
+## Linear Model with merged IUCN categories + road + pop + original forest  
+
+# Merging the categories I-III and IV-VI
+forest_tab1 <- cbind(forest_tab$id, forest_tab$trend_gls_val_2001_2014, forest_tab$iucn, road_norm, pop_norm, forest_tab$forest_area_nbcell_inPA_2000)
+
+forest_tab_2cat <- data.frame(forest_tab1, rep(0, dim(forest_tab)[1]))
+
+colnames(forest_tab_2cat) <- c('id', 'loss_trend_gls_val_2001_2014', 'iucn', 'road', 'pop', 'forest_cell', 'cat_IIII_IVVI')
+
+forest_tab_2cat[forest_tab_2cat $iucn == 1 | forest_tab_2cat $iucn == 2 | forest_tab_2cat $iucn == 3 | forest_tab_2cat $iucn == 4 ,][,7] <- 1
+forest_tab_2cat[forest_tab_2cat $iucn == 5 | forest_tab_2cat $iucn == 6 | forest_tab_2cat $iucn == 7,][,7] <- 2
+
+summary(forest_tab_2cat)
 
 # build table
-model_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014/100, forest_tab$iucn, forest_tab$pa_nbcell, forest_orig_norm, forest_tab$IPBES_sub))
-colnames(model_tab) <- c('loss_perc_2001_2014', 'iucn', 'wdpa_size', 'Forest_2000_cells', 'IPBES_sub')
+model_tab <- as.data.frame(cbind(forest_tab$loss_perc_2001_2014/100, forest_tab$iucn, forest_tab_2cat$cat_IIII_IVVI, forest_tab$pa_nbcell, forest_orig_norm, forest_tab$forest_area_nbcell_inPA_2000 , road_norm, pop_norm, forest_tab$IPBES_sub))
+
+colnames(model_tab) <- c('loss_perc_2001_2014', 'iucn', 'iucn_merged', 'wdpa_size', 'Forest_2000_cells', 'forest_cell', 'road', 'pop', 'IPBES_sub')
 head(model_tab, 10)
+
+## Linear model
+forest_cell_norm <-  forest_tab_2cat$forest_cell/max( forest_tab_2cat$forest_cell)
+
+global_Trend_M <- lm(loss_trend_gls_val_2001_2014 ~ as.factor(cat_IIII_IVVI) + road_norm + pop_norm + forest_orig_norm, data= forest_tab_2cat) 
+summary(global_Trend_M)
+
+
+## Data for loop
 
 n <- rep(0, 11)
 
@@ -24,6 +51,11 @@ IUCN_tab_slope <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
 IUCN_tab_std_error <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
 IUCN_tab_t_value <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
 IUCN_tab_pv <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+
+IUCN_tab_slope2 <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+IUCN_tab_std_error2 <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+IUCN_tab_t_value2 <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
+IUCN_tab_pv2 <- list(n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n)
 
 forest_cell <- as.numeric(model_tab $Forest_2000_cells)
 loss_perc <- forest_tab $loss_perc_2001_2014
@@ -38,14 +70,18 @@ vif_value <- list()
 for(i in 1:16){ 
 
 	IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
+	IPBES_iucn_merged <- model_tab $iucn_merged[model_tab $IPBES_sub == i] 
 	IPBES_forest_cell <- model_tab $Forest_2000_cells[model_tab $IPBES_sub == i]
 	IPBES_forest_norm <- (model_tab $Forest_2000_cells[model_tab $IPBES_sub == i])/max(model_tab $Forest_2000_cells[model_tab $IPBES_sub == i])
+	IPBES_road <- model_tab$road[model_tab $IPBES_sub == i]/max(model_tab $road[model_tab $IPBES_sub == i], na.rm=T)
+	IPBES_pop <- model_tab$pop[model_tab $IPBES_sub == i]/max(model_tab $pop[model_tab $IPBES_sub == i])
 	IPBES_loss_perc <- model_tab$loss_perc_2001_2014[model_tab $IPBES_sub == i]
-	IPBES_wdpa_norm <- model_tab$wdpa_size[model_tab $IPBES_sub == i]/max(model_tab $wdpa_size[model_tab $IPBES_sub == i])
+
 	
-	 IPBES_glm_tab <- data.frame(Y_IPBES = IPBES_loss_perc, IUCN_cat_IPBES =as.factor(IPBES_iucn), IPBES_forest_cell = IPBES_forest_cell, IPBES_forest_norm = IPBES_forest_norm, wdpa_size_norm= IPBES_wdpa_norm)
+	IPBES_glm_tab <- data.frame(Y_IPBES = IPBES_loss_perc, IUCN_cat_IPBES =as.factor(IPBES_iucn), IUCN_merged_IPBES = IPBES_iucn_merged, IPBES_forest_cell = IPBES_forest_cell, IPBES_forest_norm = IPBES_forest_norm, IPBES_road = IPBES_road, IPBES_pop = IPBES_pop)#, wdpa_size_norm= IPBES_wdpa_norm)
 	
-	glm1 <- svyglm(Y_IPBES ~ IUCN_cat_IPBES + IPBES_forest_norm ,
+	# Model with IUCN cat
+	glm1 <- svyglm(Y_IPBES ~ IUCN_cat_IPBES + IPBES_road + IPBES_pop + IPBES_forest_norm ,
 	design=svydesign(ids=~1, weights=~ IPBES_forest_cell, 
 	data= IPBES_glm_tab), 
  	family='binomial')
@@ -62,92 +98,143 @@ for(i in 1:16){
     
     summary_pv <- summary_slope
     IUCN_tab_pv[[i]] <- summary_pv$coefficients[, 4]
+    
+    # Model with merged IUCN cat
+    glm2 <- svyglm(Y_IPBES ~ IUCN_merged_IPBES + IPBES_road + IPBES_pop + IPBES_forest_norm ,
+	design=svydesign(ids=~1, weights=~ IPBES_forest_cell, 
+	data= IPBES_glm_tab), 
+ 	family='binomial')
+ 	
+ 	summary_slope2 <- summary(glm2)
+	
+	IUCN_tab_slope2[[i]] <- summary_slope2$coefficients[,1]
+	
+    summary_std_error2 <- summary_slope2
+    IUCN_tab_std_error2[[i]] <- summary_std_error2$coefficients[,2]
+    
+    summary_t_value2 <- summary_slope2
+    IUCN_tab_t_value2[[i]] <- summary_t_value2$coefficients[,3]
+    
+    summary_pv2 <- summary_slope2
+    IUCN_tab_pv2[[i]] <- summary_pv2$coefficients[, 4]
+ 	
 }
 
 
-IUCN_tab_slope2 <- list()
+IUCN_tab_slope_S <- rep(list(0), 16)
+IUCN_tab_slope_S1 <- rep(list(0), 16)
+IUCN_tab_std_error_S <- rep(list(0), 16)
+IUCN_tab_std_error_S1 <- rep(list(0), 16)
+
+IUCN_tab_slope_SV <- rep(list(0), 16)
+IUCN_tab_std_error_SV <- rep(list(0), 16)
+
+IUCN_tab_slope_M <- rep(list(0), 16)
+IUCN_tab_slope_M1 <- rep(list(0), 16)
+
+IUCN_tab_std_error_M <- rep(list(0), 16)
+IUCN_tab_std_error_M1 <- rep(list(0), 16)
+
+IUCN_tab_slope_MV <- rep(list(0), 16)
+IUCN_tab_std_error_MV <- rep(list(0), 16)
+
 
 for(i in 1:16){
+
+# Model with single IUCN cat
 IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
 a <- sort(unique(IPBES_iucn))
 b <- seq(1:7)
-miss_iucn <- b %in% a
-IUCN_tab_slope2[[i]] <- IUCN_tab_slope[[i]][1] 
-IUCN_tab_slope2[[i]][2:(length(IUCN_tab_slope[[i]])-1)] <- IUCN_tab_slope[[i]][1] + IUCN_tab_slope[[i]][2:(length(IUCN_tab_slope[[i]])-1)]
+with_iucn <- b %in% a
 
+IUCN_tab_slope_S[[i]] <- IUCN_tab_slope[[i]][1] 
+IUCN_tab_slope_S[[i]][2:(length(IUCN_tab_slope[[i]])-1)] <- IUCN_tab_slope[[i]][1] + IUCN_tab_slope[[i]][2:(length(IUCN_tab_slope[[i]])-1)]
+
+IUCN_tab_std_error_S[[i]] <- IUCN_tab_std_error[[i]]
+
+# Model with merged IUCN cat
+IPBES_iucn_merged <- model_tab $iucn_merged[model_tab $IPBES_sub == i]
+a_merged <- sort(unique(IPBES_iucn_merged))
+b_merged <- seq(1:2)
+with_iucn_merged <- b_merged %in% a_merged
+
+IUCN_tab_slope_M[[i]] <- IUCN_tab_slope2[[i]][1] 
+IUCN_tab_slope_M[[i]][2:(length(IUCN_tab_slope2[[i]])-1)] <- IUCN_tab_slope2[[i]][1] + IUCN_tab_slope2[[i]][2:(length(IUCN_tab_slope2[[i]])-1)] 
+
+IUCN_tab_std_error_M[[i]] <- IUCN_tab_std_error2[[i]]
+
+# To have IUCN variables (single)
 	for(cpt in 1:7){
-	if(miss_iucn[cpt] == F){
-		IUCN_tab_slope2[[i]] <- c(
-		IUCN_tab_slope2[[i]][1:cpt-1], 
+		
+	if(with_iucn[cpt] == T)
+	{IUCN_tab_slope_S1[[i]][cpt] <- IUCN_tab_slope_S[[i]][cpt]}
+	
+	else{
+		IUCN_tab_slope_S1[[i]][cpt:length(IUCN_tab_slope_S[[i]])] <- c(
 		NA, 
-		IUCN_tab_slope2[[i]][cpt:length(IUCN_tab_slope2[[i]])]) }
-		if(length(IUCN_tab_slope2[[i]]) > 7) {IUCN_tab_slope2[[i]] <- IUCN_tab_slope2[[i]][1:7]}
-	}
-}
-
-IUCN_tab_slope2 # all slopes = estimates saved in this list
-
-
-summary_std_error2 <- list()
-
-for(i in 1:16){
-IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
-a <- sort(unique(IPBES_iucn))
-b <- seq(1:7)
-miss_iucn <- b %in% a
-summary_std_error2[[i]] <- IUCN_tab_std_error[[i]][-length(IUCN_tab_std_error[[i]])]
-
-	for(cpt in 1:7){
-	if(miss_iucn[cpt] == F){ 
-		summary_std_error2[[i]] <- c(
-		summary_std_error2[[i]][1:cpt-1], 
+		IUCN_tab_slope_S[[i]][cpt:length(IUCN_tab_slope_S[[i]])])
+		}
+	
+	if(with_iucn[cpt] == T)
+		{IUCN_tab_std_error_S1[[i]][cpt] <- IUCN_tab_std_error_S[[i]][cpt]}
+		
+		else{
+		IUCN_tab_std_error_S1[[i]][cpt:length(IUCN_tab_std_error_S[[i]])] <- c(
 		NA, 
-		summary_std_error2[[i]][cpt:length(summary_std_error2[[i]])]) }
-	if(length(summary_std_error2[[i]]) > 7) {summary_std_error2[[i]] <- summary_std_error2[[i]][1:7]}
+		IUCN_tab_std_error_S[[i]][cpt:length(IUCN_tab_std_error_S[[i]])])
+		}
 	}
+
+	# some lines have more than 7 paramaters because data of other variables are sometimes added when NA replacement.
+	if(length(IUCN_tab_slope_S1[[i]]) > 7){IUCN_tab_slope_S1[[i]] <- IUCN_tab_slope_S1[[i]][1:7]}
+	if(length(IUCN_tab_std_error_S1[[i]]) > 7){IUCN_tab_std_error_S1[[i]] <- IUCN_tab_std_error_S1[[i]][1:7]}
+
+	
+# To have IUCN variables (merged)
+	for(cpt in 1:2){
+		
+	if(with_iucn_merged[cpt] == T)
+	{IUCN_tab_slope_M1[[i]][cpt] <- IUCN_tab_slope_M[[i]][cpt]}
+	
+	else{
+		IUCN_tab_slope_M1[[i]][cpt:length(IUCN_tab_slope_M[[i]])] <- c(
+		NA, 
+		IUCN_tab_slope_M[[i]][cpt:length(IUCN_tab_slope_M[[i]])])
+		}
+
+	if(with_iucn_merged[cpt] == T)
+	{IUCN_tab_std_error_M1[[i]][cpt] <- IUCN_tab_std_error_M[[i]][cpt]}
+	
+	else{
+		IUCN_tab_std_error_M1[[i]][cpt:length(IUCN_tab_std_error_M[[i]])] <- c(
+		NA, 
+		IUCN_tab_std_error_M[[i]][cpt:length(IUCN_tab_std_error_M[[i]])])
+		}
+	}
+	
+# added variables, single model
+	IUCN_tab_slope_SV[[i]] <- tail(IUCN_tab_slope[[i]], 3)
+	IUCN_tab_std_error_SV[[i]] <- tail(IUCN_tab_std_error[[i]], 3)
+	
+# added variables, merged model
+	IUCN_tab_slope_MV[[i]] <- tail(IUCN_tab_slope2[[i]], 3)
+	IUCN_tab_std_error_MV[[i]] <- tail(IUCN_tab_std_error2[[i]], 3)
+	
 }
 
-summary_std_error2 # all standard error saved in this list
 
 
-## take just the forest size estimate
-Forest_slope <- list()
-
-for(i in 1:16){
-IPBES_iucn <- model_tab $iucn[model_tab $IPBES_sub == i]
-a <- sort(unique(IPBES_iucn))
-b <- seq(1:7)
-miss_iucn <- b %in% a
-Forest_slope[[i]] <- IUCN_tab_slope[[i]][1]+IUCN_tab_slope[[i]][length(IUCN_tab_slope[[i]])]
-}
-
-Forest_slope
-
-
-## Figure 4
+## Figure 4 - IUCN categories, single and merged
 #---------------------
 
-estimate_IPBES <- list()
-estimate_IPBES_2 <- list()
-se_IPBES <- list()
+# add in a same list IUCN sinple + merged (each row = 9 elements)
+estimate_IPBES <- rep(list(0), 16)
+se_IPBES <- rep(list(0), 16)
 
 for(i in 1:16){
-
-	estimate_IPBES[[i]] <- IUCN_tab_slope2[[i]]
-	#estimate_IPBES_2[[i]] <- estimate_IPBES[[i]][1]
-	
-	se_IPBES[[i]] <- summary_std_error2[[i]]
-	
-	for(j in 2:(length(IUCN_tab_slope[[i]])-1)){
-		if(is.na(estimate_IPBES[[i]][j])){
-			estimate_IPBES[[i]][j] <- 0
-		} else {
-				estimate_IPBES[[i]][j] <- na.omit(IUCN_tab_slope2[[i]][j])
-				}	
-	}
+estimate_IPBES[[i]]  <- append(IUCN_tab_slope_S1[[i]], IUCN_tab_slope_M1[[i]])
+se_IPBES[[i]] <- c(IUCN_tab_std_error_S1[[i]], IUCN_tab_std_error_M1[[i]])
 }
-
-
 
 for(i in 1:16){
 estimate_IPBES[[i]][is.na(estimate_IPBES[[i]])] <- 0
@@ -158,8 +245,8 @@ se_IPBES[[i]][is.na(se_IPBES[[i]])] <- 0
 p_col <- list()
 
 for(i in 1:16){
-	p_col[[i]] <- rep('black', 7)
-	for(j in 1:7){
+	p_col[[i]] <- rep('black', 9)
+	for(j in 1:9){
 		if(estimate_IPBES[[i]][j] == 0){p_col[[i]][j] <- 'white'}
 	}
 }
@@ -167,38 +254,192 @@ for(i in 1:16){
 title_plot <- c('Caribbean', 'Central Africa', 'Central-Western Europe', 'Central Asia', 'East Africa', 'Eastern Europe', 'Mesoamerica', 'North-Africa', 'North-America', 'North-East Asia', 'Oceania', 'South-America', 'South-Asia', 'South-East Asia', 'Southern Africa', 'West Africa')
 
 pa_nb <- list(
-c('4','','20','6','13','','59'),
-c('1','2','6','','12','',''),
-c('334', '34','50','146','2380','1519','36'),
-c('26','','13','','47','',''),
-c('6','3','64','10','66','1','44'),
-c('95','','54','346','1735','47','59'),
-c('6','1','46','14','83','10','64'),
-c('','','6','1','1','1','1'),
-c('161','169','162','151','113','1080','90'),
-c('13','14','28','3','1366','433','64'),
-c('396','7','62','1134','125','67','39'),
-c('92','','254','31','105','137','269'),
-c('5','98','84','','304','22','17'),
-c('188','2','128','20','74','111','22'),
-c('','6','60','1','12','8','37'),
-c('','','16','1','23','','7'))
+c('4','','20','6','13','','59', '30', '72'),
+c('1','2','6','','12','','', '9', '12'),
+c('334', '34','50','146','2380','1519','36', '564', '3935'),
+c('26','','13','','47','','', '39', '47'),
+c('6','3','64','10','66','1','44', '83', '111'),
+c('95','','54','346','1735','47','59', '495', '1841'),
+c('6','1','46','14','83','10','64', '67', '157'),
+c('','','6','1','1','1','1', '7', '3'),
+c('161','169','162','151','113','1080','90', '643', '1283'),
+c('13','14','28','3','1366','433','64', '58', '1863'),
+c('396','7','62','1134','125','67','39', '1599', '231'),
+c('92','','254','31','105','137','269', '377', '511'),
+c('5','98','84','','304','22','17', '187', '242'),
+c('188','2','128','20','74','111','22', '338', '207'),
+c('','6','60','1','12','8','37', '67', '57'),
+c('','','16','1','23','','7', '17', '30'))
 
-Forest_slope
 
-Forest_pv <- c('','','*','','','*','','','*','','','***','***','**','**','***')
-Forest_y <- c(-0.8,-1.5,-2.9,-1,-2.8,-0.5,-1.5,12,-2.3,-2.1,-2.1,-1,-1.5,-2.5,-0.8,0.1)
+# pdf("/.../Fig.4_IPBES_iucncat3.pdf", width=13, height=7) 
 
 par(mfrow=c(4,4))
-par(mar=c(3,2,2.5,1))
+par(mar=c(3,2.5,2.5,1)) # bottom, left, top, and right.
+
+y1 <- list()
+y2 <- list()
 
 for(i in 1:16){
-	y1 <- na.omit(estimate_IPBES[[i]]) - na.omit(se_IPBES[[i]])
-	y2 <- na.omit(estimate_IPBES[[i]]) + na.omit(se_IPBES[[i]])
-	plot(estimate_IPBES[[i]], xlim=c(0.8,8.2), ylim=c(min(y1), max(y2)+0.4), pch=4, xaxt='n',  xlab=NULL, ylab=NULL, cex.lab=1.3, col= p_col[[i]]) #, xlab='IUCN category', ylab='Estimate',
-	arrows(1:length(estimate_IPBES[[i]]), y1, 1:length(estimate_IPBES[[i]]) ,y2, code=3, angle=90, length=0.05) 
-	axis(1, labels=c('Ia','Ib','II','III','IV','V','VI'), at=1:7)
-	mtext(title_plot[[i]])
-	text(y= Forest_y[i], x=8, paste('F=',round(Forest_slope[[i]],2),Forest_pv[i]), cex=0.85, srt=90)
-	text(y= c(y2[1]+0.35, y2[2]+0.35, y2[3]+0.35, y2[4]+0.35, y2[5]+0.35, y2[6]+0.35, y2[7]+0.35), x=1:7, pa_nb[[i]], cex=0.85)
+	y1[[i]] <- na.omit(estimate_IPBES[[i]]) - na.omit(se_IPBES[[i]])
+	y2[[i]] <- na.omit(estimate_IPBES[[i]]) + na.omit(se_IPBES[[i]])
+	plot(estimate_IPBES[[i]], xlim=c(0.8,9.2), ylim=c(min(y1[[i]]), max(y2[[i]])+0.4), pch=c(4,4,4,4,4,4,4,1,1), frame.plot=F, xaxt='n', cex.axis=1.6, xlab=NULL, ylab=NULL, cex.lab=1.5, col= p_col[[i]]) #
+	arrows(1:length(estimate_IPBES[[i]]), y1[[i]], 1:length(estimate_IPBES[[i]]) ,y2[[i]], code=3, angle=90, length=0.05) 
+	axis(1, labels=c('Ia','Ib','II','III','IV','V','VI', '1', '2'), at=1:9, cex.axis=1.5)
+	mtext(title_plot[[i]], cex=1.2) # I-III, IV-VI
+	#text(y= c(y2[[i]]+2/abs(min(y1[[i]]))), x=1:9, pa_nb[[i]], cex=1.2)
 }
+
+	#text(y= c(y2[[1]]+1, y2[[2]]+0.5, y2[[3]], y2[[4]]+0.3, y2[[5]], y2[[6]]+0.35, y2[[7]]+0.35, y2[[8]]+2, y2[[9]]+0.35), x=1:9, pa_nb[[i]], cex=1.2)
+
+# dev.off()
+
+
+## Other variables ~ IPBES subregion
+###-----------------
+
+# estimate and se per IPBES subregion
+
+Variables_tab_estimate_SV <- rep(list(0), 16)
+Variables_tab_std_error_SV <- rep(list(0), 16)
+
+Variables_tab_estimate_MV <- rep(list(0), 16)
+Variables_tab_std_error_MV <- rep(list(0), 16)
+
+IUCN_tab_slope_M[[i]] <- IUCN_tab_slope2[[i]][1] 
+IUCN_tab_slope_M[[i]][2:(length(IUCN_tab_slope2[[i]])-1)] <- IUCN_tab_slope2[[i]][1] + IUCN_tab_slope2[[i]][2:(length(IUCN_tab_slope2[[i]])-1)] 
+
+for(i in 1:16){	
+# Model with single IUCN cat
+Variables_tab_estimate_SV[[i]] <- IUCN_tab_slope[[1]][1] + tail(IUCN_tab_slope[[i]], 3) # add interept to compare with other graphs? Or not to compare between them?
+Variables_tab_std_error_SV[[i]] <- tail(IUCN_tab_std_error[[i]], 3)
+
+# Model with merged IUCN cat
+Variables_tab_estimate_MV[[i]] <- IUCN_tab_slope[[1]][1] + tail(IUCN_tab_slope2[[i]], 3)
+Variables_tab_std_error_MV[[i]] <- tail(IUCN_tab_std_error2[[i]], 3)
+}
+
+
+# add in a same list IUCN sinple + merged (each row = 9 elements)
+estimate_var <- rep(list(0), 16)
+se_var <- rep(list(0), 16)
+
+for(i in 1:16){
+estimate_var[[i]]  <- append(Variables_tab_estimate_SV[[i]], Variables_tab_estimate_MV[[i]])
+se_var[[i]] <- c(Variables_tab_std_error_SV[[i]], Variables_tab_std_error_MV[[i]])
+}
+
+title_plot2 <- c('Road density', 'Population density','Initial forest')
+
+# Road density
+
+pa_nb <- c('102','21', '4499','86','194','2335', '224', '10', '1926', '1921', '1830', '888',
+'530', '545', '124', '47')
+
+Road_pv <- c('','','','','***','*','','','***','***','','*','**','','','')
+Road_y <- c(0,0,0,0,-7,-0.5,-1.5,12,-2.3,-2.1,-2.1,-1,-1.5,-2.5,-0.8,0.1)
+
+estimate_point <- 0
+for(i in 1:16){
+estimate_point[i] <- estimate_var[[i]][1]
+}
+
+# pdf("/.../Fig.4_IPBES_road.pdf", width=5, height=3) 
+
+par(mfrow=c(1,1))
+par(mar=c(4,2,1.5,2))
+
+y1 <- c(rep(0), 16)
+y2 <- c(rep(0), 16)
+
+for(i in 1:16){
+	y1[i] <- na.omit(estimate_var[[i]][1]) - na.omit(se_var[[i]][1])
+	y2[i] <- na.omit(estimate_var[[i]][1]) + na.omit(se_var[[i]][1])
+	plot(estimate_point, xlim=c(0.8,16.2), ylim=c(min(y1), max(y2)+1.5), pch=4, xaxt='n',  xlab=NULL, ylab=NULL, frame.plot=F, cex.lab=1.3) #, col= p_col[[i]]
+	arrows(1:16, y1, 1:16 ,y2, code=3, angle=90, length=0.05) 
+	
+	axis(1, labels=F, at=1:16)
+	text(1:16, par("usr")[3]-2.5, labels=c('Car', 'C.Af', 'CW.Eu', 'C.Asia', 'E.Af', 'E.Eu', 'Meso', 'N.Af', 'N.Am', 'NE.As', 'Oce', 'S.Am', 'S.As', 'SE.A', 'S.Af', 'W.Af'), srt=45, pos=1, xpd=T)
+	
+	mtext(title_plot2[[1]])
+	#text(y= c(y2[1]+3.2, y2[2]+3.2, y2[3]+3.2, y2[4]+3.2, y2[5]+3.2, y2[6]+3.2, y2[7]+3.2, y2[8]+3.2, y2[9]+3.2, y2[10]+3.2, y2[11]+3.2, y2[12]+3.2, y2[13]+3.2, y2[14]+3.2, y2[15]+3.2, y2[16]+3.2), x=1:16, pa_nb, cex=0.85)
+	
+	#text(y= c(y2[1]+1.2, y2[2]+1.2, y2[3]+1.2, y2[4]+1.2, y2[5]+1.2, y2[6]+1.2, y2[7]+1.2, y2[8]+1.2, y2[9]+1.2, y2[10]+1.2, y2[11]+1.2, y2[12]+1.2, y2[13]+1.2, y2[14]+1.2, y2[15]+1.2, y2[16]+1.2), x=1:16, Road_pv, cex=0.85)
+}
+
+# dev.off()
+
+
+# Population density
+
+# pdf("/.../Fig.4_IPBES_pop.pdf", width=5, height=3) 
+
+Pop_pv <- c('','','','','***','','','','***','','','**','','','***','')
+
+estimate_point <- 0
+for(i in 1:16){
+estimate_point[i] <- estimate_var[[i]][2]
+}
+
+estimate_point2 <- 0
+for(i in 1:16){
+estimate_point2[i] <- estimate_var[[i]][5]
+}
+
+#par(mfrow=c(1,1))
+par(mar=c(4,2,1,1))
+
+y1 <- c(rep(0), 16)
+y2 <- c(rep(0), 16)
+
+x.label <- c('Car', 'C.Af', 'CW.Eu', 'C.Asia', 'E.Af', 'E.Eu', 'Meso', 'N.Af', 'N.Am', 'NE.As', 'Oce', 'S.Am', 'S.As', 'SE.A', 'S.Af', 'W.Af')
+
+for(i in 1:16){
+	y1[i] <- na.omit(estimate_var[[i]][2]) - na.omit(se_var[[i]][2])
+	y2[i] <- na.omit(estimate_var[[i]][2]) + na.omit(se_var[[i]][2])
+	plot(estimate_point, xlim=c(0.8,16.2), ylim=c(min(y1), max(y2)+0.6), pch=4, xaxt='n',  xlab=NULL, ylab=NULL, frame.plot=F,  cex.lab=1.3, xpd=T) #col= p_col[[i]],
+	arrows(1:16, y1, 1:16 ,y2, code=3, angle=90, length=0.05) 
+	
+	axis(1, labels=F, at=1:16)
+	text(1:16, par("usr")[3]-2.5, labels=c('Car', 'C.Af', 'CW.Eu', 'C.Asia', 'E.Af', 'E.Eu', 'Meso', 'N.Af', 'N.Am', 'NE.As', 'Oce', 'S.Am', 'S.As', 'SE.A', 'S.Af', 'W.Af'), srt=45, pos=1, xpd=T)
+	
+	mtext(title_plot2[[2]])
+	
+	text(y= c(y2[1]+1.2, y2[2]+1.2, y2[3]+1.2, y2[4]+1.2, y2[5]+1.2, y2[6]+1.2, y2[7]+1.2, y2[8]+1.2, y2[9]+1.2, y2[10]+1.2, y2[11]+1.2, y2[12]+1.2, y2[13]+1.2, y2[14]+1.2, y2[15]+1.2, y2[16]+1.2), x=1:16, Pop_pv, cex=0.85)
+}
+
+# dev.off()
+
+
+# Initial Forest
+
+# pdf("/.../Fig.4_IPBES_forest.pdf", width=5, height=3) 
+
+Forest_pv <- c('','','','*','','','','','','','','***','***','***','*','***')
+
+for(i in 1:16){
+estimate_point[i] <- estimate_var[[i]][3]
+}
+
+#par(mfrow=c(1,1))
+par(mar=c(3,2.7,2,2))
+
+y1 <- c(rep(0), 16)
+y2 <- c(rep(0), 16)
+
+for(i in 1:16){
+	y1[i] <- na.omit(estimate_var[[i]][3]) - na.omit(se_var[[i]][3])
+	y2[i] <- na.omit(estimate_var[[i]][3]) + na.omit(se_var[[i]][3])
+	plot(estimate_point, xlim=c(0.8,16.2), ylim=c(min(y1), max(y2)+0.4), pch=4, xaxt='n',  xlab=NULL, ylab=NULL, frame.plot=F, cex.lab=1.3) #, col= p_col[[i]] , cex.axis=1.5
+	arrows(1:16, y1, 1:16 ,y2, code=3, angle=90, length=0.05) 
+	
+	axis(1, labels=F, at=1:16)
+	text(1:16, par("usr")[3]-2.5, labels=c('Car', 'C.Af', 'CW.Eu', 'C.Asia', 'E.Af', 'E.Eu', 'Meso', 'N.Af', 'N.Am', 'NE.As', 'Oce', 'S.Am', 'S.As', 'SE.A', 'S.Af', 'W.Af'), srt=45, pos=1, xpd=T)
+	
+	mtext(title_plot2[[3]])
+	
+	text(y= c(y2[1]+1.2, y2[2]+1.2, y2[3]+1.2, y2[4]+1.2, y2[5]+1.2, y2[6]+1.2, y2[7]+1.2, y2[8]+1.2, y2[9]+1.2, y2[10]+1.2, y2[11]+1.2, y2[12]+1.2, y2[13]+1.2, y2[14]+1.2, y2[15]+1.2, y2[16]+1.2), x=1:16, Forest_pv, cex=0.85)
+}
+
+# dev.off()
+
